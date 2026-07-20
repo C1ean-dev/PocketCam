@@ -39,9 +39,12 @@ internal static partial class DirectShowRegistration
 
             var classId = typeof(DirectShowCameraFilter).GUID;
             var category = Constants.CLSID_VideoInputDeviceCategory;
+            var categoryName = PWSTR.From("Video Capture Sources");
             var friendlyName = PWSTR.From("PocketCam Virtual Camera");
             try
             {
+                var categoryResult = mapper.Object.CreateCategory(category, MeritDoNotUse, categoryName);
+                if (categoryResult.IsError) return categoryResult;
                 return mapper.Object.RegisterFilter(
                     classId,
                     friendlyName,
@@ -52,6 +55,7 @@ internal static partial class DirectShowRegistration
             }
             finally
             {
+                PWSTR.Dispose(ref categoryName);
                 PWSTR.Dispose(ref friendlyName);
             }
         }

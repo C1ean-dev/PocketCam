@@ -54,8 +54,8 @@ jobs:
           Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
           dotnet publish src/PocketCam.VirtualCamera.Source/PocketCam.VirtualCamera.Source.csproj -c Release -r win-x64 -o directshow-smoke
           $source = (Resolve-Path directshow-smoke/PocketCam.VirtualCamera.Source.dll).Path
-          & "$env:SystemRoot\System32\regsvr32.exe" /s $source
-          if ($LASTEXITCODE -ne 0) { throw "regsvr32 failed with exit code $LASTEXITCODE" }
+          $register = Start-Process "$env:SystemRoot\System32\regsvr32.exe" -ArgumentList @('/s', $source) -Wait -PassThru
+          if ($register.ExitCode -ne 0) { throw "regsvr32 failed with exit code $($register.ExitCode)" }
           try {
             $categoryKey = "Registry::HKEY_CLASSES_ROOT\CLSID\{860BB310-5D01-11D0-BD3B-00A0C911CE86}\Instance"
             $cameraClassId = [guid]"4273C9FA-4D74-4C61-9B5B-7D032BFCBDA8"
@@ -69,8 +69,8 @@ jobs:
             }
           }
           finally {
-            & "$env:SystemRoot\System32\regsvr32.exe" /s /u $source
-            if ($LASTEXITCODE -ne 0) { throw "DirectShow camera cleanup failed with exit code $LASTEXITCODE" }
+            $unregister = Start-Process "$env:SystemRoot\System32\regsvr32.exe" -ArgumentList @('/s', '/u', $source) -Wait -PassThru
+            if ($unregister.ExitCode -ne 0) { throw "DirectShow camera cleanup failed with exit code $($unregister.ExitCode)" }
           }
 
   android:
