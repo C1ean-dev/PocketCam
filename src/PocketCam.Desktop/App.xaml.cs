@@ -13,6 +13,7 @@ public partial class App : Application
         MainWindow = new MainWindow { DataContext = _viewModel };
         MainWindow.Show();
         _ = _viewModel.StartAsync();
+        _ = _viewModel.CheckForUpdatesAsync(userInitiated: false);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -21,4 +22,3 @@ public partial class App : Application
         base.OnExit(e);
     }
 }
-

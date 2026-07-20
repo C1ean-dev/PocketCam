@@ -12,6 +12,7 @@ PocketCam transforma um celular Android em webcam para Windows. O desktop encont
 - seleção contínua `USB > Wi-Fi > Bluetooth`, com histerese e failover imediato;
 - preview e telemetria no aplicativo Windows;
 - câmera virtual DirectShow no Windows 10 e Media Foundation no Windows 11, escolhida automaticamente;
+- verificação automática e manual da release estável mais recente, com confirmação antes de abrir o ZIP no Windows ou o APK no Android;
 - testes unitários do protocolo e do algoritmo de seleção, vetor binário Android/.NET e integração TCP loopback do desktop;
 - CI para testes/builds e workflow de release com APK e pacote Windows.
 
@@ -42,5 +43,7 @@ Tags no formato `v*` acionam `.github/workflows/release.yml`. O workflow produz:
 - `PocketCam-Android.apk`, assinado quando os segredos de assinatura estão configurados;
 - `PocketCam-Windows-win-x64.zip`, autocontido;
 - checksums SHA-256 de todos os artefatos.
+
+A versão gravada nos binários é derivada da própria tag. Os aplicativos consultam a release pública mais recente ao iniciar; falhas de rede não interrompem a câmera e nenhum download ou instalação acontece sem confirmação.
 
 Consulte [docs/RELEASING.md](docs/RELEASING.md) antes do primeiro release.

@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using PocketCam.Core.Connections;
 using PocketCam.Core.Protocol;
 using PocketCam.Desktop.Connections;
+using PocketCam.Desktop.Updates;
 using PocketCam.Desktop.Video;
 using PocketCam.Desktop.VirtualCamera;
 
@@ -16,6 +17,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly ConnectionManager _connectionManager = new();
     private readonly SharedMemoryFrameSink _frameSink = new();
+    private readonly GitHubReleaseUpdateService _updateService = new();
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly Stopwatch _fpsClock = Stopwatch.StartNew();
     private BitmapSource? _previewFrame;
@@ -28,6 +31,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private int _selectedFps = 20;
     private int _jpegQuality = 80;
     private string _selectedLens = "Traseira";
+    private string _updateStatusText = $"Versão {ApplicationVersion.Format(ApplicationVersion.Current)}";
+    private bool _checkingForUpdates;
     private bool _disposed;
 
     public MainWindowViewModel(Dispatcher dispatcher)
@@ -37,6 +42,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _connectionManager.StateChanged += OnStateChanged;
         ApplySettingsCommand = new AsyncCommand(ApplySettingsAsync);
         InstallVirtualCameraCommand = new AsyncCommand(InstallVirtualCameraAsync);
+        CheckForUpdatesCommand = new AsyncCommand(() => CheckForUpdatesAsync(userInitiated: true));
         VirtualCameraInstaller.Start();
     }
 
@@ -45,6 +51,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public IReadOnlyList<string> LensOptions { get; } = ["Traseira", "Frontal"];
     public AsyncCommand ApplySettingsCommand { get; }
     public AsyncCommand InstallVirtualCameraCommand { get; }
+    public AsyncCommand CheckForUpdatesCommand { get; }
     public string VirtualCameraText { get; private set; } = VirtualCameraInstaller.StatusText;
 
     public BitmapSource? PreviewFrame
@@ -65,8 +72,91 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public int SelectedFps { get => _selectedFps; set => SetProperty(ref _selectedFps, value); }
     public int JpegQuality { get => _jpegQuality; set => SetProperty(ref _jpegQuality, value); }
     public string SelectedLens { get => _selectedLens; set => SetProperty(ref _selectedLens, value); }
+    public string UpdateStatusText { get => _updateStatusText; private set => SetProperty(ref _updateStatusText, value); }
 
     public Task StartAsync() => _connectionManager.StartAsync();
+
+    public async Task CheckForUpdatesAsync(bool userInitiated)
+    {
+        if (_disposed || _checkingForUpdates)
+        {
+            if (userInitiated && !_disposed)
+            {
+                MessageBox.Show(
+                    "A verificação de atualizações já está em andamento.",
+                    "Atualizações do PocketCam",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            return;
+        }
+
+        _checkingForUpdates = true;
+        UpdateStatusText = "Verificando atualizações…";
+        try
+        {
+            var installedVersion = ApplicationVersion.Current;
+            var update = await _updateService.FindUpdateAsync(
+                installedVersion,
+                _lifetimeCancellation.Token).ConfigureAwait(true);
+
+            if (update is null)
+            {
+                UpdateStatusText = $"Versão {ApplicationVersion.Format(installedVersion)} · atualizada";
+                if (userInitiated)
+                {
+                    MessageBox.Show(
+                        "Você já está usando a versão mais recente do PocketCam.",
+                        "Atualizações do PocketCam",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                return;
+            }
+
+            var availableVersion = ApplicationVersion.Format(update.Version);
+            UpdateStatusText = $"Versão {availableVersion} disponível";
+            var answer = MessageBox.Show(
+                $"Uma nova versão do PocketCam está disponível.\n\n" +
+                $"Instalada: {ApplicationVersion.Format(installedVersion)}\n" +
+                $"Disponível: {availableVersion}\n\n" +
+                "Deseja abrir o download do pacote para Windows agora?",
+                "Atualização do PocketCam",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+
+            if (answer == MessageBoxResult.Yes)
+            {
+                OpenInBrowser(update.WindowsDownloadUri ?? update.ReleasePageUri);
+            }
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+            // The application is closing.
+        }
+        catch (Exception)
+        {
+            UpdateStatusText = $"Versão {ApplicationVersion.Format(ApplicationVersion.Current)}";
+            if (userInitiated)
+            {
+                MessageBox.Show(
+                    "Não foi possível consultar as releases do GitHub. Verifique sua conexão e tente novamente.",
+                    "Atualizações do PocketCam",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+        finally
+        {
+            _checkingForUpdates = false;
+        }
+    }
+
+    private static void OpenInBrowser(Uri uri)
+    {
+        if (uri.Scheme != Uri.UriSchemeHttps) return;
+        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+    }
 
     private void OnFrameReceived(VideoFrame frame, TransportSession session)
     {
@@ -157,9 +247,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _lifetimeCancellation.Cancel();
         _connectionManager.ActiveFrameReceived -= OnFrameReceived;
         _connectionManager.StateChanged -= OnStateChanged;
         _connectionManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _updateService.Dispose();
+        _lifetimeCancellation.Dispose();
         _frameSink.Dispose();
         VirtualCameraInstaller.Stop();
         _renderGate.Dispose();

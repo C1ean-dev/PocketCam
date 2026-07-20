@@ -46,7 +46,7 @@ jobs:
           fi
           echo "ANDROID_KEYSTORE_PATH=$PWD/release.jks" >> "$GITHUB_ENV"
       - name: Build release APK
-        run: gradle :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease --stacktrace
+        run: gradle :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease -PversionName="${GITHUB_REF_NAME#v}" -PversionCode="$GITHUB_RUN_NUMBER" --stacktrace
       - name: Preparar artefato
         run: |
           mkdir -p ../artifacts
@@ -68,14 +68,15 @@ jobs:
       - name: Publicar componentes
         shell: pwsh
         run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vsPath) { throw "Visual C++ x64 build tools were not found." }
           Import-Module "$vsPath\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
           Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
-          dotnet publish src/PocketCam.Desktop/PocketCam.Desktop.csproj -c Release -r win-x64 -o package/PocketCam
-          dotnet publish src/PocketCam.VirtualCamera.Host/PocketCam.VirtualCamera.Host.csproj -c Release -r win-x64 -o package/PocketCam/virtual-camera
-          dotnet publish src/PocketCam.VirtualCamera.Source/PocketCam.VirtualCamera.Source.csproj -c Release -r win-x64 -o package/PocketCam/virtual-camera
+          dotnet publish src/PocketCam.Desktop/PocketCam.Desktop.csproj -c Release -r win-x64 -p:Version=$version -o package/PocketCam
+          dotnet publish src/PocketCam.VirtualCamera.Host/PocketCam.VirtualCamera.Host.csproj -c Release -r win-x64 -p:Version=$version -o package/PocketCam/virtual-camera
+          dotnet publish src/PocketCam.VirtualCamera.Source/PocketCam.VirtualCamera.Source.csproj -c Release -r win-x64 -p:Version=$version -o package/PocketCam/virtual-camera
       - name: Incluir ADB oficial
         shell: pwsh
         run: |

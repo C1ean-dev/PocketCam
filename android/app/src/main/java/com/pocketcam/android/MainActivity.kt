@@ -3,6 +3,7 @@ package com.pocketcam.android
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -18,7 +19,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -31,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,12 +45,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.pocketcam.android.camera.CameraStreamingService
 import com.pocketcam.android.settings.SettingsStore
 import com.pocketcam.android.stream.ServiceStatus
+import com.pocketcam.android.updates.GitHubReleaseUpdateChecker
+import com.pocketcam.android.updates.ReleaseUpdate
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
+    private val updateChecker = GitHubReleaseUpdateChecker()
+    private var availableUpdate by mutableStateOf<ReleaseUpdate?>(null)
+    private var updateStatus by mutableStateOf("Versão ${BuildConfig.VERSION_NAME.substringBefore('-')}")
+    private var checkingForUpdates = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,9 +83,15 @@ class MainActivity : ComponentActivity() {
                     onRequestPermission = { launcher.launch(permissions) },
                     onStart = ::startStreaming,
                     onStop = ::stopStreaming,
+                    updateStatus = updateStatus,
+                    availableUpdate = availableUpdate,
+                    onCheckForUpdates = { checkForUpdates(userInitiated = true) },
+                    onDismissUpdate = { availableUpdate = null },
+                    onOpenUpdate = ::openUpdate,
                 )
             }
         }
+        checkForUpdates(userInitiated = false)
     }
 
     private fun startStreaming() {
@@ -80,6 +100,43 @@ class MainActivity : ComponentActivity() {
 
     private fun stopStreaming() {
         stopService(Intent(this, CameraStreamingService::class.java))
+    }
+
+    private fun checkForUpdates(userInitiated: Boolean) {
+        if (checkingForUpdates) {
+            if (userInitiated) updateStatus = "A verificação já está em andamento…"
+            return
+        }
+
+        checkingForUpdates = true
+        if (userInitiated) updateStatus = "Verificando atualizações…"
+        lifecycleScope.launch {
+            try {
+                val update = updateChecker.findUpdate()
+                if (update == null) {
+                    updateStatus = "Versão ${BuildConfig.VERSION_NAME.substringBefore('-')} · atualizada"
+                } else {
+                    updateStatus = "Versão ${update.version} disponível"
+                    availableUpdate = update
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                updateStatus = if (userInitiated) {
+                    "Não foi possível consultar as releases. Tente novamente."
+                } else {
+                    "Versão ${BuildConfig.VERSION_NAME.substringBefore('-')}"
+                }
+            } finally {
+                checkingForUpdates = false
+            }
+        }
+    }
+
+    private fun openUpdate(update: ReleaseUpdate) {
+        availableUpdate = null
+        val target = update.androidDownloadUri ?: update.releasePageUri
+        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target.toString())))
     }
 
     private fun requiredPermissions(): Array<String> = buildList {
@@ -99,14 +156,36 @@ private fun PocketCamScreen(
     onRequestPermission: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
+    updateStatus: String,
+    availableUpdate: ReleaseUpdate?,
+    onCheckForUpdates: () -> Unit,
+    onDismissUpdate: () -> Unit,
+    onOpenUpdate: (ReleaseUpdate) -> Unit,
 ) {
     val settings by store.settings.collectAsState()
     val status by ServiceStatus.value.collectAsState()
     var fps by remember(settings.fps) { mutableFloatStateOf(settings.fps.toFloat()) }
     var quality by remember(settings.jpegQuality) { mutableFloatStateOf(settings.jpegQuality.toFloat()) }
 
+    if (availableUpdate != null) {
+        AlertDialog(
+            onDismissRequest = onDismissUpdate,
+            title = { Text("Atualização do PocketCam") },
+            text = {
+                Text(
+                    "Uma nova versão está disponível.\n\n" +
+                        "Instalada: ${BuildConfig.VERSION_NAME.substringBefore('-')}\n" +
+                        "Disponível: ${availableUpdate.version}\n\n" +
+                        "Deseja abrir o download do APK agora?",
+                )
+            },
+            confirmButton = { Button(onClick = { onOpenUpdate(availableUpdate) }) { Text("Abrir download") } },
+            dismissButton = { Button(onClick = onDismissUpdate) { Text("Agora não") } },
+        )
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF071A1D)).padding(20.dp),
+        modifier = Modifier.fillMaxSize().background(Color(0xFF071A1D)).verticalScroll(rememberScrollState()).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text("POCKETCAM", color = Color(0xFF00D4A6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -162,6 +241,9 @@ private fun PocketCamScreen(
         Button(onClick = { store.update(settings.copy(lens = if (settings.lens == "back") "front" else "back")) }) {
             Text(if (settings.lens == "back") "Usando câmera traseira" else "Usando câmera frontal")
         }
+        Text("Atualizações", fontWeight = FontWeight.SemiBold)
+        Text(updateStatus, color = Color(0xFFA8C7C8), fontSize = 13.sp)
+        Button(onClick = onCheckForUpdates) { Text("Verificar atualizações") }
         Spacer(Modifier.height(4.dp))
         Text(
             "Mantenha o app aberto. USB é preferido; Wi-Fi e Bluetooth assumem automaticamente.",

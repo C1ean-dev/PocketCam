@@ -22,3 +22,4 @@ git push origin v0.1.0
 
 O job só cria o GitHub Release se testes Android, testes .NET e ambos os builds terminarem com sucesso.
 
+O workflow deriva `Version`/`versionName` da tag e usa o número da execução como `versionCode` do APK. Mantenha as tags no formato semântico `vMAJOR.MINOR.PATCH`, pois os verificadores de atualização comparam esses três componentes.
