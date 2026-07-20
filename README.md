@@ -12,7 +12,7 @@ PocketCam transforma um celular Android em webcam para Windows. O desktop encont
 - seleção contínua `USB > Wi-Fi > Bluetooth`, com histerese e failover imediato;
 - preview e telemetria no aplicativo Windows;
 - saída para câmera virtual Media Foundation no Windows 11;
-- testes unitários do protocolo e do algoritmo de seleção;
+- testes unitários do protocolo e do algoritmo de seleção, vetor binário Android/.NET e integração TCP loopback do desktop;
 - CI para testes/builds e workflow de release com APK e pacote Windows.
 
 ## Requisitos

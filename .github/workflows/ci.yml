@@ -21,7 +21,7 @@ jobs:
       - name: Restore
         run: dotnet restore PocketCam.sln
       - name: Test core
-        run: dotnet test tests/PocketCam.Core.Tests/PocketCam.Core.Tests.csproj -c Release --no-restore --collect:"XPlat Code Coverage"
+        run: dotnet test PocketCam.sln -c Release --no-restore --collect:"XPlat Code Coverage"
       - name: Build desktop
         run: dotnet publish src/PocketCam.Desktop/PocketCam.Desktop.csproj -c Release -r win-x64 --no-restore
       - name: Build virtual camera host

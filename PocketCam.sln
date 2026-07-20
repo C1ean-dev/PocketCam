@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.Desktop", "src\Po
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.Core.Tests", "tests\PocketCam.Core.Tests\PocketCam.Core.Tests.csproj", "{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.Desktop.Tests", "tests\PocketCam.Desktop.Tests\PocketCam.Desktop.Tests.csproj", "{B6951442-0DDD-4EAA-A10D-FC01CC96C53A}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.VirtualCamera.Source", "src\PocketCam.VirtualCamera.Source\PocketCam.VirtualCamera.Source.csproj", "{E616873E-FE89-4805-B99C-0F0E37296FC8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.VirtualCamera.Host", "src\PocketCam.VirtualCamera.Host\PocketCam.VirtualCamera.Host.csproj", "{2D51D9BB-EB89-4CD7-B0F6-A9CB48182723}"
@@ -31,6 +33,10 @@ Global
 		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6951442-0DDD-4EAA-A10D-FC01CC96C53A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6951442-0DDD-4EAA-A10D-FC01CC96C53A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6951442-0DDD-4EAA-A10D-FC01CC96C53A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6951442-0DDD-4EAA-A10D-FC01CC96C53A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Debug|Any CPU.ActiveCfg = Debug|x64
 		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Debug|Any CPU.Build.0 = Debug|x64
 		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Release|Any CPU.ActiveCfg = Release|x64
