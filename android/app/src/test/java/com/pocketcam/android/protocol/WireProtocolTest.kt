@@ -27,6 +27,28 @@ class WireProtocolTest {
         assertArrayEquals(original.payload, result.payload)
     }
 
+    @Test
+    fun encodingMatchesDotNetGoldenVector() {
+        val message = WireProtocol.Message(
+            type = WireProtocol.Type.STATUS,
+            flags = 3,
+            sequence = 42,
+            timestampMicros = 123456789,
+            payload = byteArrayOf(1, 2, 3),
+        )
+        val encoded = ByteArrayOutputStream().also { WireProtocol.write(it, message) }.toByteArray()
+
+        assertArrayEquals(
+            byteArrayOf(
+                0x50, 0x43, 0x4d, 0x31, 0x01, 0x06, 0x03, 0x00,
+                0x03, 0x00, 0x00, 0x00, 0x2a, 0x00, 0x00, 0x00,
+                0x15, 0xcd.toByte(), 0x5b, 0x07, 0x00, 0x00, 0x00, 0x00,
+                0x1d, 0x80.toByte(), 0xbc.toByte(), 0x55, 0x01, 0x02, 0x03,
+            ),
+            encoded,
+        )
+    }
+
     @Test(expected = ProtocolException::class)
     fun rejectsCorruptPayload() {
         val bytes = ByteArrayOutputStream().also {
@@ -36,4 +58,3 @@ class WireProtocolTest {
         WireProtocol.read(ByteArrayInputStream(bytes))
     }
 }
-

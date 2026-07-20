@@ -22,6 +22,24 @@ public sealed class ProtocolCodecTests
     }
 
     [Fact]
+    public async Task EncodingMatchesAndroidGoldenVector()
+    {
+        var message = new ProtocolMessage(
+            MessageType.Status,
+            3,
+            42,
+            123_456_789,
+            [1, 2, 3]);
+        await using var stream = new MemoryStream();
+
+        await ProtocolCodec.WriteAsync(stream, message);
+
+        Assert.Equal(
+            Convert.FromHexString("50434D3101060300030000002A00000015CD5B07000000001D80BC55010203"),
+            stream.ToArray());
+    }
+
+    [Fact]
     public async Task CorruptedPayloadIsRejected()
     {
         await using var stream = new MemoryStream();
