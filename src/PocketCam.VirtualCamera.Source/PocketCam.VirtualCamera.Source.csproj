@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <PublishAot>true</PublishAot>
+    <NativeLib>Shared</NativeLib>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <_EnableConsumingManagedCodeFromNativeHosting>true</_EnableConsumingManagedCodeFromNativeHosting>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DirectNAot" Version="1.6.4" />
+    <PackageReference Include="DirectNAot.Extensions" Version="1.6.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="DirectN" />
+    <Using Include="DirectN.Extensions" />
+    <Using Include="DirectN.Extensions.Com" />
+    <Using Include="DirectN.Extensions.Utilities" />
+    <Using Include="Microsoft.Win32" />
+    <Using Include="System" />
+    <Using Include="System.Collections" />
+    <Using Include="System.Collections.Concurrent" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.ComponentModel" />
+    <Using Include="System.Diagnostics.CodeAnalysis" />
+    <Using Include="System.Globalization" />
+    <Using Include="System.IO" />
+    <Using Include="System.Linq" />
+    <Using Include="System.Numerics" />
+    <Using Include="System.Reflection" />
+    <Using Include="System.Runtime.Versioning" />
+    <Using Include="System.Runtime.CompilerServices" />
+    <Using Include="System.Runtime.InteropServices" />
+    <Using Include="System.Runtime.InteropServices.Marshalling" />
+    <Using Include="System.Security" />
+    <Using Include="System.Threading" />
+    <Using Include="VCamNetSampleSourceAOT.Hosting" />
+    <Using Include="VCamNetSampleSourceAOT.Utilities" />
+    <Using Include="Windows.ApplicationModel" />
+    <Using Alias="MF_EVENT_TYPE" Include="DirectN.__MIDL___MIDL_itf_mfobjects_0000_0013_0001" />
+  </ItemGroup>
+</Project>

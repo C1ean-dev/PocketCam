@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>PocketCam.Desktop</RootNamespace>
+    <AssemblyName>PocketCam</AssemblyName>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PocketCam.Core\PocketCam.Core.csproj" />
+    <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.2.4" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,28 @@
+# Build outputs
+**/bin/
+**/obj/
+**/build/
+**/.gradle/
+**/.kotlin/
+**/captures/
+artifacts/
+.tooling/
+
+# IDEs and local configuration
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+local.properties
+
+# Signing material must never be committed
+*.jks
+*.keystore
+*.pfx
+*.p12
+*.snk
+
+# OS files
+.DS_Store
+Thumbs.db

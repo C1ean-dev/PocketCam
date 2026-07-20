@@ -1,0 +1,43 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.Core", "src\PocketCam.Core\PocketCam.Core.csproj", "{2089EF4E-E90E-4ADF-B2CB-C43EBB74DE9C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.Desktop", "src\PocketCam.Desktop\PocketCam.Desktop.csproj", "{76DC9532-9720-4899-B31D-04057D7B6969}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.Core.Tests", "tests\PocketCam.Core.Tests\PocketCam.Core.Tests.csproj", "{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.VirtualCamera.Source", "src\PocketCam.VirtualCamera.Source\PocketCam.VirtualCamera.Source.csproj", "{E616873E-FE89-4805-B99C-0F0E37296FC8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PocketCam.VirtualCamera.Host", "src\PocketCam.VirtualCamera.Host\PocketCam.VirtualCamera.Host.csproj", "{2D51D9BB-EB89-4CD7-B0F6-A9CB48182723}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2089EF4E-E90E-4ADF-B2CB-C43EBB74DE9C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2089EF4E-E90E-4ADF-B2CB-C43EBB74DE9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2089EF4E-E90E-4ADF-B2CB-C43EBB74DE9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2089EF4E-E90E-4ADF-B2CB-C43EBB74DE9C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{76DC9532-9720-4899-B31D-04057D7B6969}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{76DC9532-9720-4899-B31D-04057D7B6969}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{76DC9532-9720-4899-B31D-04057D7B6969}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{76DC9532-9720-4899-B31D-04057D7B6969}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5EFEBFEE-0F9E-4605-A0AE-CC56D6EC6866}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Debug|Any CPU.Build.0 = Debug|x64
+		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Release|Any CPU.ActiveCfg = Release|x64
+		{E616873E-FE89-4805-B99C-0F0E37296FC8}.Release|Any CPU.Build.0 = Release|x64
+		{2D51D9BB-EB89-4CD7-B0F6-A9CB48182723}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2D51D9BB-EB89-4CD7-B0F6-A9CB48182723}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2D51D9BB-EB89-4CD7-B0F6-A9CB48182723}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2D51D9BB-EB89-4CD7-B0F6-A9CB48182723}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

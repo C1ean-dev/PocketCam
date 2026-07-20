@@ -1,0 +1,21 @@
+# Guia de uso
+
+1. Instale o APK no Android e o pacote PocketCam no Windows.
+2. Abra os dois aplicativos. Conceda câmera e, se usar Bluetooth, permissão para dispositivos próximos.
+3. Na mesma rede Wi-Fi, o telefone deve aparecer automaticamente em poucos segundos.
+4. Para USB, habilite **Opções do desenvolvedor > Depuração USB**, conecte o cabo e aceite a autorização RSA. O desktop cria o túnel automaticamente.
+5. Para Bluetooth, pareie telefone e computador nas configurações do sistema antes de abrir os aplicativos.
+6. Escolha resolução, FPS, qualidade e lente no Android ou no painel Windows.
+7. Em aplicativos como Teams, Zoom ou OBS, selecione **PocketCam Windows Virtual Camera**.
+
+O indicador de transporte fica verde para a rota ativa. USB tem preferência. Ao remover o cabo, uma sessão Wi-Fi já saudável assume automaticamente; Bluetooth é usado quando as outras duas não estão disponíveis.
+
+Para reduzir travamentos em redes congestionadas, use 1280×720 a 20 FPS. Bluetooth deve ficar em 320×240 a 5 FPS.
+
+## Solução de problemas
+
+- **USB não aparece:** execute `adb devices`, desbloqueie o telefone e aceite a autorização. Confira também se o driver USB do fabricante está instalado.
+- **Wi-Fi não aparece:** confirme que a rede permite comunicação entre clientes; redes de convidados geralmente bloqueiam multicast e broadcast.
+- **Bluetooth não aparece:** pareie os dispositivos no Windows e reabra os dois aplicativos.
+- **A câmera virtual não aparece:** ela exige Windows 11 build 22000+ e permissão de câmera habilitada em Privacidade e segurança.
+
