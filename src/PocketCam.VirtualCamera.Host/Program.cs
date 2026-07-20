@@ -19,6 +19,8 @@ internal static class Program
             {
                 "install" => Register(uninstall: false),
                 "uninstall" => Register(uninstall: true),
+                "register-directshow" => DirectShowRegistrar.Register(),
+                "unregister-directshow" => DirectShowRegistrar.Unregister(),
                 "run" => Run(args),
                 _ => 2,
             };
@@ -45,9 +47,10 @@ internal static class Program
             Directory.CreateDirectory(installDirectory);
             File.Copy(packagedSource, installedSource, overwrite: true);
         }
-        else if (!File.Exists(installedSource))
+        else
         {
-            return 0;
+            DirectShowRegistrar.Unregister();
+            if (!File.Exists(installedSource)) return 0;
         }
 
         var info = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "regsvr32.exe"))
@@ -60,12 +63,21 @@ internal static class Program
         using var process = Process.Start(info);
         if (process is null) return 4;
         process.WaitForExit();
-        if (uninstall && process.ExitCode == 0)
+        if (process.ExitCode != 0) return process.ExitCode;
+
+        if (!uninstall)
+        {
+            if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+                DirectShowRegistrar.Unregister();
+            else
+                DirectShowRegistrar.Register();
+        }
+        else
         {
             try { File.Delete(installedSource); }
             catch (IOException) { }
         }
-        return process.ExitCode;
+        return 0;
     }
 
     private static int Run(IReadOnlyList<string> args)

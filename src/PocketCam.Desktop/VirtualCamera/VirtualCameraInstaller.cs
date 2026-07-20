@@ -26,8 +26,9 @@ public static class VirtualCameraInstaller
         }
         var info = new ProcessStartInfo(register)
         {
-            UseShellExecute = false,
-            CreateNoWindow = true,
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden,
         };
         info.ArgumentList.Add("install");
         using var process = Process.Start(info) ?? throw new InvalidOperationException("Não foi possível iniciar o instalador da câmera virtual.");
