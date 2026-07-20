@@ -5,15 +5,19 @@ namespace PocketCam.Desktop.VirtualCamera;
 public static class VirtualCameraInstaller
 {
     private static Process? _host;
-    public static bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
+    public static VirtualCameraBackend Backend => VirtualCameraBackendSelector.Current;
+    public static bool IsSupported => Backend is not VirtualCameraBackend.Unsupported;
 
-    public static string StatusText => IsSupported
-        ? "A saída é publicada para a câmera virtual PocketCam no Windows 11."
-        : "A câmera virtual exige Windows 11; o preview e as conexões continuam disponíveis.";
+    public static string StatusText => Backend switch
+    {
+        VirtualCameraBackend.MediaFoundation => "Câmera virtual Media Foundation disponível no Windows 11.",
+        VirtualCameraBackend.DirectShow => "Câmera virtual DirectShow disponível no Windows 10.",
+        _ => "A câmera virtual exige Windows 10 versão 2004 ou superior.",
+    };
 
     public static async Task InstallAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsSupported) throw new PlatformNotSupportedException("A câmera virtual exige Windows 11 build 22000 ou superior.");
+        if (!IsSupported) throw new PlatformNotSupportedException("A câmera virtual exige Windows 10 versão 2004 (build 19041) ou superior.");
         Stop();
         var register = Path.Combine(AppContext.BaseDirectory, "virtual-camera", "PocketCam.VirtualCamera.Host.exe");
         if (!File.Exists(register))
@@ -34,7 +38,11 @@ public static class VirtualCameraInstaller
 
     public static bool Start()
     {
-        if (!IsSupported || _host is { HasExited: false }) return _host is { HasExited: false };
+        if (!IsSupported) return false;
+        // DirectShow loads the source DLL inside the consuming application and
+        // therefore does not need a separate lifetime host on Windows 10.
+        if (Backend == VirtualCameraBackend.DirectShow) return true;
+        if (_host is { HasExited: false }) return true;
         var host = Path.Combine(AppContext.BaseDirectory, "virtual-camera", "PocketCam.VirtualCamera.Host.exe");
         if (!File.Exists(host)) return false;
         var info = new ProcessStartInfo(host)

@@ -20,6 +20,7 @@ public static partial class ComHosting
     public static Type[] ComTypes { get; } =
     [
         typeof(Activator),
+        typeof(DirectShow.DirectShowCameraFilter),
     ];
 
     // create registry entries for all types supported in this module.
@@ -97,6 +98,12 @@ public static partial class ComHosting
         {
             RegisterInProcessComObject(root, type, RegistrationDllPath, ThreadingModel);
         }
+        DirectShow.DirectShowRegistration.Unregister();
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) &&
+            !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            DirectShow.DirectShowRegistration.Register().ThrowOnError();
+        }
         return Constants.S_OK;
     }
 
@@ -104,6 +111,7 @@ public static partial class ComHosting
     {
         Trace($"Path:{DllPath}");
         var root = InstallInHkcu ? Registry.CurrentUser : Registry.LocalMachine;
+        DirectShow.DirectShowRegistration.Unregister();
         foreach (var type in ComTypes)
         {
             UnregisterComObject(root, type);
@@ -252,5 +260,4 @@ public static partial class ComHosting
 #endif
 }
 #pragma warning restore IDE0079 // Remove unnecessary suppression
-
 

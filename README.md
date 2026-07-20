@@ -11,14 +11,14 @@ PocketCam transforma um celular Android em webcam para Windows. O desktop encont
 - fallback Bluetooth Classic por RFCOMM, indicado para resoluções e FPS reduzidos;
 - seleção contínua `USB > Wi-Fi > Bluetooth`, com histerese e failover imediato;
 - preview e telemetria no aplicativo Windows;
-- saída para câmera virtual Media Foundation no Windows 11;
+- câmera virtual DirectShow no Windows 10 e Media Foundation no Windows 11, escolhida automaticamente;
 - testes unitários do protocolo e do algoritmo de seleção, vetor binário Android/.NET e integração TCP loopback do desktop;
 - CI para testes/builds e workflow de release com APK e pacote Windows.
 
 ## Requisitos
 
 - Android 8.0 (API 26) ou superior;
-- Windows 11 build 22000 ou superior para a câmera virtual; o preview funciona no Windows 10 19041+;
+- Windows 10 versão 2004 (build 19041) ou superior, incluindo a câmera virtual; Windows 11 usa o backend Media Foundation mais moderno;
 - .NET SDK 10 e Visual Studio Build Tools 2022 com o Windows 11 SDK para compilar o desktop;
 - JDK 17 e Android SDK 35 para compilar o APK;
 - para USB: depuração USB habilitada e o computador autorizado no telefone. O release do Windows procura `adb.exe` no pacote, no Android SDK local e no `PATH`.

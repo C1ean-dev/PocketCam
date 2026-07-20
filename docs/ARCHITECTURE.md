@@ -14,7 +14,9 @@ flowchart LR
     RFCOMM --> Manager
     Manager --> Preview[Preview WPF]
     Manager --> Shared[Memória compartilhada]
-    Shared --> VCam[Media Foundation Virtual Camera]
+    Shared --> Selector{Versão do Windows}
+    Selector -->|Windows 10| DShow[DirectShow Capture Filter]
+    Selector -->|Windows 11| VCam[Media Foundation Virtual Camera]
 ```
 
 O Android comprime cada frame apenas uma vez e o publica para todos os clientes. Cada cliente tem uma fila de tamanho um: se o consumidor estiver lento, o frame antigo é descartado. Isso evita que latência se acumule, especialmente no Bluetooth.
@@ -46,5 +48,9 @@ Uma rota saudável recebe a prioridade base, bônus de estabilidade e penalidade
 
 ## Compatibilidade da câmera virtual
 
-A câmera virtual usa `MFCreateVirtualCamera`, disponível a partir do Windows build 22000. O preview e todas as conexões continuam funcionando em Windows 10; apenas o dispositivo virtual fica indisponível. A fonte Media Foundation lê BGRA da memória compartilhada publicada pelo desktop.
+O instalador escolhe o backend pelo build do sistema:
 
+- Windows 10 versão 2004 ou posterior usa um filtro de captura DirectShow RGB32 registrado em `CLSID_VideoInputDeviceCategory`;
+- Windows 11 build 22000 ou posterior usa `MFCreateVirtualCamera` e a fonte Media Foundation.
+
+Os dois backends leem BGRA da mesma memória compartilhada publicada pelo desktop. No Windows 10, o filtro DirectShow é carregado dentro do aplicativo consumidor e não precisa de processo auxiliar. No Windows 11, o host mantém a câmera Media Foundation ativa enquanto o PocketCam está aberto. O pacote atual é x64 e, portanto, destina-se a aplicativos de videoconferência x64.

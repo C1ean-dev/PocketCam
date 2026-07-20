@@ -11,7 +11,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return 20;
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041)) return 20;
         if (args.Length == 0) return 2;
         try
         {
@@ -70,6 +70,10 @@ internal static class Program
 
     private static int Run(IReadOnlyList<string> args)
     {
+        // On Windows 10 the camera is a persistent DirectShow capture filter
+        // loaded by each consumer, so there is no separate host process.
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return 0;
+
         MFFunctions.MFStartup();
         try
         {

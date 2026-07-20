@@ -36,6 +36,35 @@ jobs:
           Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
           dotnet publish src/PocketCam.VirtualCamera.Source/PocketCam.VirtualCamera.Source.csproj -c Release -r win-x64
 
+  windows-10-camera:
+    name: Windows 10 / DirectShow
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Build and register DirectShow camera
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsPath) { throw "Visual C++ x64 build tools were not found." }
+          Import-Module "$vsPath\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
+          dotnet publish src/PocketCam.VirtualCamera.Source/PocketCam.VirtualCamera.Source.csproj -c Release -r win-x64 -o directshow-smoke
+          $source = (Resolve-Path directshow-smoke/PocketCam.VirtualCamera.Source.dll).Path
+          & "$env:SystemRoot\System32\regsvr32.exe" /s $source
+          if ($LASTEXITCODE -ne 0) { throw "regsvr32 failed with exit code $LASTEXITCODE" }
+          try {
+            $cameraKey = "Registry::HKEY_CLASSES_ROOT\CLSID\{860BB310-5D01-11D0-BD3B-00A0C911CE86}\Instance\{4273C9FA-4D74-4C61-9B5B-7D032BFCBDA8}"
+            if (-not (Test-Path $cameraKey)) { throw "PocketCam DirectShow camera was not registered." }
+          }
+          finally {
+            & "$env:SystemRoot\System32\regsvr32.exe" /s /u $source
+            if ($LASTEXITCODE -ne 0) { throw "DirectShow camera cleanup failed with exit code $LASTEXITCODE" }
+          }
+
   android:
     name: Android
     runs-on: ubuntu-latest

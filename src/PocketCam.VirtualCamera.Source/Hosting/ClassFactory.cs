@@ -25,6 +25,10 @@ public partial class ClassFactory : IClassFactory
         {
             obj = new Activator();
         }
+        else if (Type == typeof(VCamNetSampleSourceAOT.DirectShow.DirectShowCameraFilter))
+        {
+            obj = new VCamNetSampleSourceAOT.DirectShow.DirectShowCameraFilter();
+        }
 
         var unk = DirectN.Extensions.Com.ComObject.GetOrCreateComInstance(obj, riid);
         ppvObject = unk;
@@ -37,5 +41,4 @@ public partial class ClassFactory : IClassFactory
         return Constants.S_OK;
     }
 }
-
 
