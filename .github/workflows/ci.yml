@@ -57,8 +57,16 @@ jobs:
           & "$env:SystemRoot\System32\regsvr32.exe" /s $source
           if ($LASTEXITCODE -ne 0) { throw "regsvr32 failed with exit code $LASTEXITCODE" }
           try {
-            $cameraKey = "Registry::HKEY_CLASSES_ROOT\CLSID\{860BB310-5D01-11D0-BD3B-00A0C911CE86}\Instance\{4273C9FA-4D74-4C61-9B5B-7D032BFCBDA8}"
-            if (-not (Test-Path $cameraKey)) { throw "PocketCam DirectShow camera was not registered." }
+            $categoryKey = "Registry::HKEY_CLASSES_ROOT\CLSID\{860BB310-5D01-11D0-BD3B-00A0C911CE86}\Instance"
+            $cameraClassId = [guid]"4273C9FA-4D74-4C61-9B5B-7D032BFCBDA8"
+            $registered = @(Get-ChildItem $categoryKey | ForEach-Object {
+              $registeredClassId = (Get-ItemProperty $_.PSPath).CLSID
+              if ($registeredClassId -and ([guid]$registeredClassId -eq $cameraClassId)) { $_ }
+            })
+            if ($registered.Count -ne 1) {
+              Get-ChildItem $categoryKey | ForEach-Object { Get-ItemProperty $_.PSPath | Select-Object PSChildName, FriendlyName, CLSID }
+              throw "PocketCam DirectShow camera was not registered exactly once."
+            }
           }
           finally {
             & "$env:SystemRoot\System32\regsvr32.exe" /s /u $source
