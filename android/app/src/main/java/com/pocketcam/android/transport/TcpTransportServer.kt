@@ -5,10 +5,12 @@ import com.pocketcam.android.settings.SettingsStore
 import com.pocketcam.android.stream.FrameHub
 import com.pocketcam.android.stream.ServiceStatus
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -29,14 +31,16 @@ class TcpTransportServer(
     fun start() {
         if (acceptJob != null) return
         acceptJob = scope.launch(Dispatchers.IO) {
-            val server = ServerSocket().also {
-                it.reuseAddress = true
-                it.bind(InetSocketAddress(WireProtocol.TCP_PORT))
-                serverSocket = it
-            }
+            var server: ServerSocket? = null
             try {
+                val listeningSocket = ServerSocket().also {
+                    it.reuseAddress = true
+                    it.bind(InetSocketAddress(WireProtocol.TCP_PORT))
+                    serverSocket = it
+                }
+                server = listeningSocket
                 while (isActive) {
-                    val socket = server.accept().apply {
+                    val socket = listeningSocket.accept().apply {
                         tcpNoDelay = true
                         keepAlive = true
                     }
@@ -48,6 +52,10 @@ class TcpTransportServer(
                                 socket.getInputStream(), socket.getOutputStream(), socket,
                                 frameHub, settingsStore, this, appVersion,
                             ).run()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            ServiceStatus.update { it.copy(lastError = "Sessão Wi-Fi/USB: ${error.message}") }
                         } finally {
                             sockets -= socket
                             ServiceStatus.update { it.copy(wifiClients = (it.wifiClients - 1).coerceAtLeast(0)) }
@@ -58,8 +66,10 @@ class TcpTransportServer(
                 }
             } catch (error: SocketException) {
                 if (isActive) ServiceStatus.update { it.copy(lastError = error.message) }
+            } catch (error: IOException) {
+                if (isActive) ServiceStatus.update { it.copy(lastError = error.message) }
             } finally {
-                server.close()
+                runCatching { server?.close() }
             }
         }
     }

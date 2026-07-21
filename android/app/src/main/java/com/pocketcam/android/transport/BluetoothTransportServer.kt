@@ -12,6 +12,7 @@ import com.pocketcam.android.settings.SettingsStore
 import com.pocketcam.android.stream.FrameHub
 import com.pocketcam.android.stream.ServiceStatus
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
@@ -54,6 +55,10 @@ class BluetoothTransportServer(
                                 socket.inputStream, socket.outputStream, socket,
                                 frameHub, settingsStore, this, appVersion,
                             ).run()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (error: Exception) {
+                            ServiceStatus.update { it.copy(lastError = "Sessão Bluetooth: ${error.message}") }
                         } finally {
                             sockets -= socket
                             ServiceStatus.update {

@@ -5,6 +5,7 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import com.pocketcam.android.protocol.WireProtocol
+import com.pocketcam.android.stream.ServiceStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -77,7 +78,8 @@ class DiscoveryAdvertiser(
                 } catch (_: SocketTimeoutException) {
                     // Re-check coroutine cancellation once per second.
                 } catch (error: java.net.SocketException) {
-                    if (isActive) throw error
+                    if (isActive) ServiceStatus.update { it.copy(lastError = "Descoberta: ${error.message}") }
+                    break
                 }
             }
         }

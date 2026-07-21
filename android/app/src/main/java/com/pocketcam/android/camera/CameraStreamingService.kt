@@ -67,10 +67,11 @@ class CameraStreamingService : LifecycleService() {
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, notification())
         acquireLocks()
+        ServiceStatus.update { it.copy(running = true, lastError = null) }
         tcpServer.start()
         bluetoothServer.start()
-        discovery.start()
-        ServiceStatus.update { it.copy(running = true, lastError = null) }
+        runCatching { discovery.start() }
+            .onFailure { error -> ServiceStatus.update { it.copy(lastError = "Descoberta: ${error.message}") } }
         observeCameraConfiguration()
     }
 

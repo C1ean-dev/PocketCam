@@ -1,11 +1,17 @@
 package com.pocketcam.android
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -52,6 +58,7 @@ import com.pocketcam.android.settings.SettingsStore
 import com.pocketcam.android.stream.ServiceStatus
 import com.pocketcam.android.updates.GitHubReleaseUpdateChecker
 import com.pocketcam.android.updates.ReleaseUpdate
+import com.pocketcam.android.usb.UsbDebuggingPromptPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
@@ -64,6 +71,33 @@ class MainActivity : ComponentActivity() {
     private var availableUpdate by mutableStateOf<ReleaseUpdate?>(null)
     private var updateStatus by mutableStateOf("")
     private var checkingForUpdates = false
+    private var usbCableConnected by mutableStateOf(false)
+    private var usbDebuggingEnabled by mutableStateOf(false)
+    private var usbPromptDismissed by mutableStateOf(false)
+    private var usbReceiverRegistered = false
+    private var usbDataStateSeen = false
+    private var adbUsbFunctionActive = false
+    private val usbStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                USB_STATE_ACTION -> {
+                    usbDataStateSeen = true
+                    val connected = intent.getBooleanExtra("connected", false)
+                    if (!connected) usbPromptDismissed = false
+                    usbCableConnected = connected
+                    adbUsbFunctionActive = connected && intent.getBooleanExtra("adb", false)
+                }
+                Intent.ACTION_BATTERY_CHANGED -> if (!usbDataStateSeen) {
+                    val connected = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ==
+                        BatteryManager.BATTERY_PLUGGED_USB
+                    if (!connected) usbPromptDismissed = false
+                    usbCableConnected = connected
+                }
+                else -> return
+            }
+            refreshUsbDebuggingState()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -102,13 +136,52 @@ class MainActivity : ComponentActivity() {
                     appVersionName = appVersionName,
                     updateStatus = updateStatus,
                     availableUpdate = availableUpdate,
+                    usbCableConnected = usbCableConnected,
+                    usbDebuggingEnabled = usbDebuggingEnabled,
+                    showUsbDebuggingPrompt = UsbDebuggingPromptPolicy.shouldPrompt(
+                        usbCableConnected,
+                        usbDebuggingEnabled,
+                        usbPromptDismissed,
+                    ),
                     onCheckForUpdates = { checkForUpdates(userInitiated = true) },
                     onDismissUpdate = { availableUpdate = null },
                     onOpenUpdate = ::openUpdate,
+                    onDismissUsbDebugging = { usbPromptDismissed = true },
+                    onOpenDeveloperOptions = ::openDeveloperOptions,
                 )
             }
         }
         checkForUpdates(userInitiated = false)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!usbReceiverRegistered) {
+            ContextCompat.registerReceiver(
+                this,
+                usbStateReceiver,
+                IntentFilter().apply {
+                    addAction(USB_STATE_ACTION)
+                    addAction(Intent.ACTION_BATTERY_CHANGED)
+                },
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            usbReceiverRegistered = true
+        }
+        refreshUsbDebuggingState()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshUsbDebuggingState()
+    }
+
+    override fun onStop() {
+        if (usbReceiverRegistered) {
+            unregisterReceiver(usbStateReceiver)
+            usbReceiverRegistered = false
+        }
+        super.onStop()
     }
 
     private fun startStreaming() {
@@ -156,6 +229,23 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target.toString())))
     }
 
+    private fun refreshUsbDebuggingState() {
+        val settingEnabled = runCatching {
+            Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+        }.getOrDefault(false)
+        usbDebuggingEnabled = adbUsbFunctionActive || settingEnabled
+    }
+
+    private fun openDeveloperOptions() {
+        usbPromptDismissed = true
+        val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            startActivity(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS))
+        }
+    }
+
     private fun requiredPermissions(): Array<String> = buildList {
         add(Manifest.permission.CAMERA)
         if (Build.VERSION.SDK_INT >= 31) {
@@ -176,9 +266,14 @@ private fun PocketCamScreen(
     appVersionName: String,
     updateStatus: String,
     availableUpdate: ReleaseUpdate?,
+    usbCableConnected: Boolean,
+    usbDebuggingEnabled: Boolean,
+    showUsbDebuggingPrompt: Boolean,
     onCheckForUpdates: () -> Unit,
     onDismissUpdate: () -> Unit,
     onOpenUpdate: (ReleaseUpdate) -> Unit,
+    onDismissUsbDebugging: () -> Unit,
+    onOpenDeveloperOptions: () -> Unit,
 ) {
     val settings by store.settings.collectAsState()
     val status by ServiceStatus.value.collectAsState()
@@ -186,7 +281,21 @@ private fun PocketCamScreen(
     var fps by remember(settings.fps) { mutableFloatStateOf(settings.fps.toFloat()) }
     var quality by remember(settings.jpegQuality) { mutableFloatStateOf(settings.jpegQuality.toFloat()) }
 
-    if (availableUpdate != null) {
+    if (showUsbDebuggingPrompt) {
+        AlertDialog(
+            onDismissRequest = onDismissUsbDebugging,
+            title = { Text("Ative a Depuração USB") },
+            text = {
+                Text(
+                    "O PocketCam detectou um cabo USB, mas a Depuração USB está desativada. " +
+                        "Abra as Opções do desenvolvedor, ative a Depuração USB e autorize este computador.\n\n" +
+                        "Se o menu ainda não existir, abra Sobre o telefone > Informações do software e toque sete vezes em Número da versão.",
+                )
+            },
+            confirmButton = { Button(onClick = onOpenDeveloperOptions) { Text("Abrir configurações") } },
+            dismissButton = { Button(onClick = onDismissUsbDebugging) { Text("Usar Wi-Fi") } },
+        )
+    } else if (availableUpdate != null) {
         AlertDialog(
             onDismissRequest = onDismissUpdate,
             title = { Text("Atualização do PocketCam") },
@@ -222,6 +331,20 @@ private fun PocketCamScreen(
                     color = Color(0xFFA8C7C8),
                     fontSize = 12.sp,
                 )
+                if (usbCableConnected) {
+                    Text(
+                        if (usbDebuggingEnabled) {
+                            "USB conectado · desbloqueie o telefone e autorize este computador"
+                        } else {
+                            "USB conectado · Depuração USB desativada"
+                        },
+                        color = if (usbDebuggingEnabled) Color(0xFFA8C7C8) else Color(0xFFFFC46B),
+                        fontSize = 12.sp,
+                    )
+                    if (!usbDebuggingEnabled) {
+                        Button(onClick = onOpenDeveloperOptions) { Text("Ativar Depuração USB") }
+                    }
+                }
                 status.lastError?.let { Text(it, color = Color(0xFFFF938A), fontSize = 12.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
@@ -298,6 +421,8 @@ private fun localIpv4Addresses(): List<String> = buildList {
         }
     }
 }.distinct().sorted()
+
+private const val USB_STATE_ACTION = "android.hardware.usb.action.USB_STATE"
 
 private val pocketCamColors = darkColorScheme(
     primary = Color(0xFF00D4A6),

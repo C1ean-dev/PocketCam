@@ -10,12 +10,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.Closeable
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
@@ -33,15 +33,25 @@ class ClientSession(
     private val sequence = AtomicInteger(1)
 
     suspend fun run() {
-        send(WireProtocol.Type.HELLO, helloPayload())
-        val writer = scope.launch(Dispatchers.IO) {
-            frameHub.frames.collectLatest { frame ->
-                val payload = FramePayload(frame.width, frame.height, frame.rotation, frame.jpeg).encode()
-                send(WireProtocol.Type.FRAME, payload, frame.capturedAtMicros)
-            }
-        }
-
+        var writer: Job? = null
         try {
+            send(WireProtocol.Type.HELLO, helloPayload())
+            writer = scope.launch(Dispatchers.IO) {
+                try {
+                    frameHub.frames.collectLatest { frame ->
+                        val payload = FramePayload(frame.width, frame.height, frame.rotation, frame.jpeg).encode()
+                        send(WireProtocol.Type.FRAME, payload, frame.capturedAtMicros)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: IOException) {
+                    // Closing the socket below wakes the reader and ends only this client session.
+                    runCatching { closeable.close() }
+                } catch (_: Exception) {
+                    runCatching { closeable.close() }
+                }
+            }
+
             while (scope.isActive) {
                 val message = WireProtocol.read(input)
                 when (message.type) {
@@ -52,9 +62,16 @@ class ClientSession(
             }
         } catch (cancelled: CancellationException) {
             throw cancelled
+        } catch (_: IOException) {
+            // EOF and connection resets are normal when a route is probed, replaced or unplugged.
         } finally {
-            writer.cancelAndJoin()
-            closeable.close()
+            runCatching { closeable.close() }
+            writer?.cancel()
+            try {
+                writer?.join()
+            } catch (_: CancellationException) {
+                // The parent service is already stopping.
+            }
         }
     }
 
