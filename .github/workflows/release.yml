@@ -7,13 +7,37 @@ permissions:
   contents: write
 
 jobs:
+  verify-main:
+    name: Confirmar código da main
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Exigir tag no commit atual da main
+        id: source
+        shell: bash
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          tag_sha="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          main_sha="$(git rev-parse "origin/main^{commit}")"
+          if [ "$tag_sha" != "$main_sha" ]; then
+            echo "A tag ${GITHUB_REF_NAME} aponta para $tag_sha, mas a main aponta para $main_sha." >&2
+            echo "Crie a tag somente depois de enviar o commit da main." >&2
+            exit 1
+          fi
+          echo "commit_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: verify-main
     uses: ./.github/workflows/ci.yml
 
   android:
     name: APK assinado
     runs-on: ubuntu-latest
-    needs: test
+    needs: [verify-main, test]
     defaults:
       run:
         working-directory: android
@@ -23,6 +47,8 @@ jobs:
       ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify-main.outputs.commit_sha }}
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -59,9 +85,11 @@ jobs:
   windows:
     name: Aplicativo Windows
     runs-on: windows-latest
-    needs: test
+    needs: [verify-main, test]
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify-main.outputs.commit_sha }}
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 10.0.x

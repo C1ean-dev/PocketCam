@@ -41,7 +41,7 @@ Veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para o desenho do sistema e [d
 
 ## Releases
 
-Tags no formato `v*` acionam `.github/workflows/release.yml`. O workflow produz:
+Tags no formato `v*` acionam `.github/workflows/release.yml`, mas só são aceitas quando apontam exatamente para o commit atual da `main` remota. APK e pacote Windows são compilados desse mesmo SHA validado. O workflow produz:
 
 - `PocketCam-Android.apk`, assinado quando os segredos de assinatura estão configurados;
 - `PocketCam-Windows-win-x64.zip`, autocontido;
