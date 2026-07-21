@@ -6,10 +6,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 data class EncodedFrame(
-    val width: Int,
-    val height: Int,
-    val rotation: Int,
-    val jpeg: ByteArray,
+    val payload: ByteArray,
     val capturedAtMicros: Long,
 )
 
@@ -25,4 +22,3 @@ class FrameHub {
         mutableFrames.tryEmit(frame)
     }
 }
-

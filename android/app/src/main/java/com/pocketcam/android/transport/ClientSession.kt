@@ -1,16 +1,16 @@
 package com.pocketcam.android.transport
 
 import android.os.Build
-import com.pocketcam.android.protocol.FramePayload
 import com.pocketcam.android.protocol.WireProtocol
 import com.pocketcam.android.settings.SettingsStore
-import com.pocketcam.android.settings.StreamSettings
+import com.pocketcam.android.settings.SettingsPayload
 import com.pocketcam.android.stream.FrameHub
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -33,24 +33,21 @@ class ClientSession(
     private val sequence = AtomicInteger(1)
 
     suspend fun run() {
-        var writer: Job? = null
+        var writers: List<Job> = emptyList()
         try {
             send(WireProtocol.Type.HELLO, helloPayload())
-            writer = scope.launch(Dispatchers.IO) {
-                try {
+            writers = listOf(
+                launchWriter {
                     frameHub.frames.collectLatest { frame ->
-                        val payload = FramePayload(frame.width, frame.height, frame.rotation, frame.jpeg).encode()
-                        send(WireProtocol.Type.FRAME, payload, frame.capturedAtMicros)
+                        send(WireProtocol.Type.FRAME, frame.payload, frame.capturedAtMicros)
                     }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: IOException) {
-                    // Closing the socket below wakes the reader and ends only this client session.
-                    runCatching { closeable.close() }
-                } catch (_: Exception) {
-                    runCatching { closeable.close() }
-                }
-            }
+                },
+                launchWriter {
+                    settingsStore.settings.collect { settings ->
+                        send(WireProtocol.Type.SETTINGS, SettingsPayload.encode(settings))
+                    }
+                },
+            )
 
             while (scope.isActive) {
                 val message = WireProtocol.read(input)
@@ -66,12 +63,27 @@ class ClientSession(
             // EOF and connection resets are normal when a route is probed, replaced or unplugged.
         } finally {
             runCatching { closeable.close() }
-            writer?.cancel()
-            try {
-                writer?.join()
-            } catch (_: CancellationException) {
-                // The parent service is already stopping.
+            writers.forEach(Job::cancel)
+            writers.forEach { writer ->
+                try {
+                    writer.join()
+                } catch (_: CancellationException) {
+                    // The parent service is already stopping.
+                }
             }
+        }
+    }
+
+    private fun launchWriter(block: suspend () -> Unit): Job = scope.launch(Dispatchers.IO) {
+        try {
+            block()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: IOException) {
+            // Closing the socket wakes the reader and ends only this client session.
+            runCatching { closeable.close() }
+        } catch (_: Exception) {
+            runCatching { closeable.close() }
         }
     }
 
@@ -79,22 +91,20 @@ class ClientSession(
         .put("deviceId", deviceId())
         .put("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
         .put("appVersion", appVersion)
-        .put("capabilities", org.json.JSONArray(listOf("jpeg", "settings", "wifi", "usb-adb", "bluetooth-rfcomm")))
+        .put("capabilities", org.json.JSONArray(listOf("jpeg", "settings", "settings-sync", "wifi", "usb-adb", "bluetooth-rfcomm")))
         .toString()
         .toByteArray(Charsets.UTF_8)
 
     private fun applySettings(payload: ByteArray) {
-        val json = JSONObject(payload.toString(Charsets.UTF_8))
-        val current = settingsStore.settings.value
-        settingsStore.update(
-            StreamSettings(
-                width = json.optInt("width", current.width),
-                height = json.optInt("height", current.height),
-                fps = json.optInt("fps", current.fps),
-                jpegQuality = json.optInt("jpegQuality", current.jpegQuality),
-                lens = json.optString("lens", current.lens),
-            ),
-        )
+        try {
+            val applied = SettingsPayload.decode(payload, settingsStore.settings.value)
+            settingsStore.update(applied)
+            // Direct response is the acknowledgement even when the requested state was unchanged.
+            send(WireProtocol.Type.SETTINGS, SettingsPayload.encode(applied))
+        } catch (error: Exception) {
+            val response = JSONObject().put("message", "Configurações inválidas: ${error.message}")
+            send(WireProtocol.Type.ERROR, response.toString().toByteArray(Charsets.UTF_8))
+        }
     }
 
     private fun send(type: WireProtocol.Type, payload: ByteArray, timestamp: Long = System.currentTimeMillis() * 1_000) {

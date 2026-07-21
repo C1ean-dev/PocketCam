@@ -29,8 +29,12 @@ public sealed class ConnectionManager : IAsyncDisposable
         new BluetoothDiscoveryService(),
     ];
     private readonly List<Task> _backgroundTasks = [];
+    private readonly object _settingsGate = new();
+    private string? _lastSettingsDeviceId;
+    private CameraSettings? _lastSettings;
 
     public event Action<VideoFrame, TransportSession>? ActiveFrameReceived;
+    public event Action<CameraSettings>? SettingsChanged;
     public event Action<IReadOnlyList<ConnectionState>, SelectionResult>? StateChanged;
 
     public Task StartAsync()
@@ -44,11 +48,31 @@ public sealed class ConnectionManager : IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    public async Task ApplySettingsAsync(CameraSettings settings, CancellationToken cancellationToken = default)
+    public async Task<CameraSettings> ApplySettingsAsync(CameraSettings settings, CancellationToken cancellationToken = default)
     {
-        if (_arbiter.ActiveId is not null && _sessions.TryGetValue(_arbiter.ActiveId, out var active))
+        settings.Validate();
+        if (_arbiter.ActiveId is null || !_sessions.TryGetValue(_arbiter.ActiveId, out var active))
         {
-            await active.SendSettingsAsync(settings, cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("Nenhum celular está conectado para receber as configurações.");
+        }
+
+        var confirmation = new TaskCompletionSource<CameraSettings>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Confirm(TransportSession session, CameraSettings applied)
+        {
+            if (ReferenceEquals(session, active) && applied == settings) confirmation.TrySetResult(applied);
+        }
+
+        active.SettingsReceived += Confirm;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellation.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            await active.SendSettingsAsync(settings, timeout.Token).ConfigureAwait(false);
+            return await confirmation.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            active.SettingsReceived -= Confirm;
         }
     }
 
@@ -82,6 +106,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     {
         var session = new TransportSession(endpoint);
         session.FrameReceived += OnFrameReceived;
+        session.SettingsReceived += OnSettingsReceived;
         session.StateChanged += OnSessionStateChanged;
         try
         {
@@ -127,6 +152,12 @@ public sealed class ConnectionManager : IAsyncDisposable
         PublishState();
     }
 
+    private void OnSettingsReceived(TransportSession session, CameraSettings settings)
+    {
+        var selection = Evaluate();
+        if (selection.ActiveId == session.Endpoint.Id) PublishActiveSettings(selection);
+    }
+
     private async Task MonitorAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -156,6 +187,25 @@ public sealed class ConnectionManager : IAsyncDisposable
             .ThenByDescending(state => state.Kind)
             .ToArray();
         StateChanged?.Invoke(states, selection);
+        PublishActiveSettings(selection);
+    }
+
+    private void PublishActiveSettings(SelectionResult selection)
+    {
+        if (selection.ActiveId is null ||
+            !_sessions.TryGetValue(selection.ActiveId, out var active) ||
+            active.CurrentSettings is not { } settings)
+        {
+            return;
+        }
+
+        lock (_settingsGate)
+        {
+            if (_lastSettingsDeviceId == active.DeviceId && _lastSettings == settings) return;
+            _lastSettingsDeviceId = active.DeviceId;
+            _lastSettings = settings;
+        }
+        SettingsChanged?.Invoke(settings);
     }
 
     public async ValueTask DisposeAsync()

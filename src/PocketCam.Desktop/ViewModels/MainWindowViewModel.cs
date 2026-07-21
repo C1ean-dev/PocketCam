@@ -22,6 +22,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly Stopwatch _fpsClock = Stopwatch.StartNew();
     private BitmapSource? _previewFrame;
+    private BitmapSource? _pendingPreviewFrame;
+    private int _previewUpdateQueued;
     private string _statusText = "Procurando celulares PocketCam… No USB, autorize a Depuração USB.";
     private string _activeTransportLabel = "DESCOBERTO AUTOMATICAMENTE";
     private string _latencyText = "— ms";
@@ -31,6 +33,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private int _selectedFps = 20;
     private int _jpegQuality = 80;
     private string _selectedLens = "Traseira";
+    private string _settingsStatusText = "Aguardando configurações do celular…";
     private string _updateStatusText = $"Versão {ApplicationVersion.Format(ApplicationVersion.Current)}";
     private bool _checkingForUpdates;
     private bool _disposed;
@@ -39,6 +42,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         _dispatcher = dispatcher;
         _connectionManager.ActiveFrameReceived += OnFrameReceived;
+        _connectionManager.SettingsChanged += OnSettingsChanged;
         _connectionManager.StateChanged += OnStateChanged;
         ApplySettingsCommand = new AsyncCommand(ApplySettingsAsync);
         InstallVirtualCameraCommand = new AsyncCommand(InstallVirtualCameraAsync);
@@ -72,6 +76,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public int SelectedFps { get => _selectedFps; set => SetProperty(ref _selectedFps, value); }
     public int JpegQuality { get => _jpegQuality; set => SetProperty(ref _jpegQuality, value); }
     public string SelectedLens { get => _selectedLens; set => SetProperty(ref _selectedLens, value); }
+    public string SettingsStatusText { get => _settingsStatusText; private set => SetProperty(ref _settingsStatusText, value); }
     public string UpdateStatusText { get => _updateStatusText; private set => SetProperty(ref _updateStatusText, value); }
 
     public Task StartAsync() => _connectionManager.StartAsync();
@@ -169,7 +174,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 var bgra = FrameRenderer.ToBgra32(bitmap);
                 _frameSink.Publish(bgra, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() * 1_000);
                 Interlocked.Increment(ref _framesSinceSample);
-                _dispatcher.BeginInvoke(() => PreviewFrame = bitmap, DispatcherPriority.Render);
+                QueuePreview(bitmap);
             }
             catch
             {
@@ -180,6 +185,25 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
                 _renderGate.Release();
             }
         });
+    }
+
+    private void QueuePreview(BitmapSource bitmap)
+    {
+        Interlocked.Exchange(ref _pendingPreviewFrame, bitmap);
+        if (Interlocked.Exchange(ref _previewUpdateQueued, 1) != 0) return;
+        _dispatcher.BeginInvoke(DrainPreview, DispatcherPriority.Render);
+    }
+
+    private void DrainPreview()
+    {
+        var latest = Interlocked.Exchange(ref _pendingPreviewFrame, null);
+        if (latest is not null) PreviewFrame = latest;
+        Interlocked.Exchange(ref _previewUpdateQueued, 0);
+        if (Volatile.Read(ref _pendingPreviewFrame) is not null &&
+            Interlocked.Exchange(ref _previewUpdateQueued, 1) == 0)
+        {
+            _dispatcher.BeginInvoke(DrainPreview, DispatcherPriority.Render);
+        }
     }
 
     private void OnStateChanged(IReadOnlyList<ConnectionState> states, SelectionResult selection)
@@ -216,6 +240,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         });
     }
 
+    private void OnSettingsChanged(CameraSettings settings)
+    {
+        _dispatcher.BeginInvoke(() => ApplyConfirmedSettings(settings));
+    }
+
+    private void ApplyConfirmedSettings(CameraSettings settings)
+    {
+        SelectedResolution = $"{settings.Width} × {settings.Height}";
+        SelectedFps = settings.Fps;
+        JpegQuality = settings.JpegQuality;
+        SelectedLens = settings.Lens == "front" ? "Frontal" : "Traseira";
+        SettingsStatusText = $"Sincronizado · {settings.Width}×{settings.Height} · {settings.Fps} FPS · {settings.JpegQuality}%";
+    }
+
     private async Task ApplySettingsAsync()
     {
         var parts = SelectedResolution.Split('×', StringSplitOptions.TrimEntries);
@@ -225,8 +263,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             SelectedFps,
             JpegQuality,
             SelectedLens == "Frontal" ? "front" : "back");
-        await _connectionManager.ApplySettingsAsync(settings).ConfigureAwait(true);
-        StatusText = "Configurações enviadas ao celular.";
+        SettingsStatusText = "Aplicando e aguardando confirmação do celular…";
+        try
+        {
+            var confirmed = await _connectionManager.ApplySettingsAsync(settings).ConfigureAwait(true);
+            ApplyConfirmedSettings(confirmed);
+        }
+        catch (OperationCanceledException)
+        {
+            SettingsStatusText = "O celular não confirmou as configurações em 5 segundos.";
+        }
+        catch (Exception error)
+        {
+            SettingsStatusText = error.Message;
+        }
     }
 
     private async Task InstallVirtualCameraAsync()
@@ -249,6 +299,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _disposed = true;
         _lifetimeCancellation.Cancel();
         _connectionManager.ActiveFrameReceived -= OnFrameReceived;
+        _connectionManager.SettingsChanged -= OnSettingsChanged;
         _connectionManager.StateChanged -= OnStateChanged;
         _connectionManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _updateService.Dispose();

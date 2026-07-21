@@ -17,6 +17,8 @@ Tipos: `HELLO=1`, `FRAME=2`, `SETTINGS=3`, `PING=4`, `PONG=5`, `STATUS=6`, `ERRO
 
 `HELLO`, `SETTINGS`, `STATUS` e `ERROR` usam UTF-8 JSON. `PING` e `PONG` não precisam de payload.
 
+`SETTINGS` é bidirecional. O Android envia o estado atual ao conectar e sempre que uma configuração muda localmente. O Windows envia o estado desejado; depois de validar e persistir, o Android responde com `SETTINGS` contendo o estado efetivamente aplicado. Essa resposta funciona como confirmação e mantém as duas interfaces sincronizadas durante troca de rota.
+
 ## Payload FRAME
 
 | Offset | Tamanho | Campo |
@@ -29,4 +31,3 @@ Tipos: `HELLO=1`, `FRAME=2`, `SETTINGS=3`, `PING=4`, `PONG=5`, `STATUS=6`, `ERRO
 | 8 | N | bytes codificados |
 
 O receptor deve sempre validar magic, versão, tamanho, rotação e CRC antes de usar o payload.
-

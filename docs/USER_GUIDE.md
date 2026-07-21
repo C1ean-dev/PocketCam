@@ -5,14 +5,14 @@
 3. Na mesma rede Wi-Fi, o telefone deve aparecer automaticamente em poucos segundos.
 4. Para USB, conecte o cabo. Se a Depuração USB estiver desativada, o Android oferecerá um atalho para **Opções do desenvolvedor**. Ative **Depuração USB**, mantenha o telefone desbloqueado e aceite a autorização RSA; o desktop cria o túnel automaticamente.
 5. Para Bluetooth, pareie telefone e computador nas configurações do sistema antes de abrir os aplicativos.
-6. Escolha resolução, FPS, qualidade e lente no Android ou no painel Windows.
+6. Escolha resolução, FPS, qualidade e lente no Android ou no painel Windows. Mudanças feitas no Android aparecem automaticamente no Windows; ao usar **Aplicar no celular**, o Windows aguarda a confirmação do Android e atualiza as duas telas com o estado aplicado.
 7. No primeiro uso, clique em **Instalar / reparar câmera** e aceite a elevação do Windows. Reabra o aplicativo de videoconferência caso ele já estivesse em execução.
 8. Em aplicativos como Teams, Zoom, navegadores ou OBS, selecione **PocketCam Virtual Camera** (Windows 10) ou **PocketCam** (Windows 11).
 9. Windows e Android verificam silenciosamente a release estável mais recente ao abrir. Se houver atualização, confirme para abrir o download correspondente. Também é possível usar **Verificar atualizações** no painel de cada aplicativo.
 
 O indicador de transporte fica verde para a rota ativa. USB tem preferência. Ao remover o cabo, uma sessão Wi-Fi já saudável assume automaticamente; Bluetooth é usado quando as outras duas não estão disponíveis.
 
-Para reduzir travamentos em redes congestionadas, use 1280×720 a 20 FPS. Bluetooth deve ficar em 320×240 a 5 FPS.
+O pipeline pede à câmera a faixa de FPS selecionada e descarta frames antigos para manter baixa latência. O FPS efetivo ainda depende da câmera, iluminação e transporte. Em Wi-Fi congestionado, use 1280×720 a 20 FPS. Bluetooth deve ficar em 640×480 a 5 FPS.
 
 ## Solução de problemas
 

@@ -7,7 +7,6 @@ data class StreamingStatus(
     val running: Boolean = false,
     val wifiClients: Int = 0,
     val bluetoothClients: Int = 0,
-    val framesEncoded: Long = 0,
     val lastError: String? = null,
 )
 
@@ -19,4 +18,3 @@ object ServiceStatus {
         mutable.value = block(mutable.value)
     }
 }
-

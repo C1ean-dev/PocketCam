@@ -8,11 +8,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.camera2.CaptureRequest
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Range
 import android.util.Size
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
@@ -34,18 +38,23 @@ import com.pocketcam.android.stream.ServiceStatus
 import com.pocketcam.android.transport.BluetoothTransportServer
 import com.pocketcam.android.transport.DiscoveryAdvertiser
 import com.pocketcam.android.transport.TcpTransportServer
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 class CameraStreamingService : LifecycleService() {
     private val frameHub = FrameHub()
-    private val cameraExecutor = Dispatchers.Default.asExecutor()
+    private val cameraExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread({
+            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY)
+            task.run()
+        }, "PocketCam-Encoder")
+    }
+    private val jpegEncoder = YuvToJpegEncoder()
     private lateinit var settingsStore: SettingsStore
     private lateinit var tcpServer: TcpTransportServer
     private lateinit var bluetoothServer: BluetoothTransportServer
@@ -83,6 +92,7 @@ class CameraStreamingService : LifecycleService() {
     override fun onDestroy() {
         settingsJob?.cancel()
         cameraProvider?.unbindAll()
+        cameraExecutor.shutdownNow()
         discovery.stop()
         bluetoothServer.stop()
         tcpServer.stop()
@@ -96,12 +106,13 @@ class CameraStreamingService : LifecycleService() {
     private fun observeCameraConfiguration() {
         settingsJob = lifecycleScope.launch {
             settingsStore.settings
-                .map { Triple(it.width, it.height, it.lens) }
+                .map { CameraBindingSettings(it.width, it.height, it.fps, it.lens) }
                 .distinctUntilChanged()
                 .collect { bindCamera(settingsStore.settings.value) }
         }
     }
 
+    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
     private fun bindCamera(settings: StreamSettings) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             stopSelf()
@@ -113,7 +124,14 @@ class CameraStreamingService : LifecycleService() {
                 val provider = future.get()
                 cameraProvider = provider
                 provider.unbindAll()
-                val analysis = ImageAnalysis.Builder()
+                lastFrameNanos.set(0)
+                val selector = if (settings.lens == "front") {
+                    CameraSelector.DEFAULT_FRONT_CAMERA
+                } else {
+                    CameraSelector.DEFAULT_BACK_CAMERA
+                }
+                val targetFrameRate = selectFrameRate(provider, selector, settings.fps)
+                val analysisBuilder = ImageAnalysis.Builder()
                     .setResolutionSelector(
                         ResolutionSelector.Builder()
                             .setResolutionStrategy(
@@ -125,20 +143,34 @@ class CameraStreamingService : LifecycleService() {
                             .build(),
                     )
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                    .build()
-                analysis.setAnalyzer(cameraExecutor, ::analyze)
-                val selector = if (settings.lens == "front") {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_NV21)
+                if (targetFrameRate != null) {
+                    Camera2Interop.Extender(analysisBuilder).setCaptureRequestOption(
+                        CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                        targetFrameRate,
+                    )
                 }
+                val analysis = analysisBuilder.build()
+                analysis.setAnalyzer(cameraExecutor, ::analyze)
                 provider.bindToLifecycle(this, selector, analysis)
             } catch (error: Exception) {
                 ServiceStatus.update { it.copy(lastError = "Camera: ${error.message}") }
             }
         }, ContextCompat.getMainExecutor(this))
     }
+
+    private fun selectFrameRate(
+        provider: ProcessCameraProvider,
+        selector: CameraSelector,
+        requestedFps: Int,
+    ): Range<Int>? = runCatching {
+        val cameraInfo = selector.filter(provider.availableCameraInfos).firstOrNull() ?: return@runCatching null
+        val selected = CameraFrameRatePolicy.select(
+            cameraInfo.supportedFrameRateRanges.map { FrameRateRange(it.lower, it.upper) },
+            requestedFps,
+        ) ?: return@runCatching null
+        Range(selected.lower, selected.upper)
+    }.getOrNull()
 
     private fun analyze(image: ImageProxy) {
         try {
@@ -147,17 +179,18 @@ class CameraStreamingService : LifecycleService() {
             val minimumInterval = TimeUnit.SECONDS.toNanos(1) / settings.fps
             val previous = lastFrameNanos.get()
             if (now - previous < minimumInterval || !lastFrameNanos.compareAndSet(previous, now)) return
-            val jpeg = YuvToJpeg.encode(image, settings.jpegQuality)
+            val jpeg = jpegEncoder.encode(image, settings.jpegQuality)
             frameHub.publish(
                 EncodedFrame(
-                    image.width,
-                    image.height,
-                    image.imageInfo.rotationDegrees,
-                    jpeg,
-                    System.currentTimeMillis() * 1_000,
+                    payload = com.pocketcam.android.protocol.FramePayload(
+                        image.width,
+                        image.height,
+                        image.imageInfo.rotationDegrees,
+                        jpeg,
+                    ).encode(),
+                    capturedAtMicros = System.currentTimeMillis() * 1_000,
                 ),
             )
-            ServiceStatus.update { it.copy(framesEncoded = it.framesEncoded + 1) }
         } catch (error: Exception) {
             ServiceStatus.update { it.copy(lastError = "Encoder: ${error.message}") }
         } finally {
@@ -206,4 +239,11 @@ class CameraStreamingService : LifecycleService() {
         private const val CHANNEL_ID = "streaming"
         private const val NOTIFICATION_ID = 17890
     }
+
+    private data class CameraBindingSettings(
+        val width: Int,
+        val height: Int,
+        val fps: Int,
+        val lens: String,
+    )
 }

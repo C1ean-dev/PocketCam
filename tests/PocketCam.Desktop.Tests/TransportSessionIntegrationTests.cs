@@ -81,6 +81,41 @@ public sealed class TransportSessionIntegrationTests
         Assert.Equal("front", settings.Lens);
     }
 
+    [Fact]
+    public async Task SettingsFromAndroidUpdateTheSessionState()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var listener = StartListener(out var port);
+        var expected = new CameraSettings(1280, 720, 30, 70, "back");
+        var server = Task.Run(async () =>
+        {
+            using var client = await listener.AcceptTcpClientAsync(timeout.Token);
+            await using var stream = client.GetStream();
+            var hello = new HelloMessage("phone-sync", "Synced Android", "0.2.0", ["jpeg", "settings-sync"]);
+            await ProtocolCodec.WriteAsync(
+                stream,
+                ProtocolMessage.Create(MessageType.Hello, 1, JsonPayload.Serialize(hello)),
+                timeout.Token);
+            await ProtocolCodec.WriteAsync(
+                stream,
+                ProtocolMessage.Create(MessageType.Settings, 2, JsonPayload.Serialize(expected)),
+                timeout.Token);
+            await Task.Delay(100, timeout.Token);
+        }, timeout.Token);
+
+        var endpoint = new TransportEndpoint("wifi:sync", TransportKind.WiFi, "127.0.0.1", port, "Expected");
+        await using var session = new TransportSession(endpoint);
+        var received = new TaskCompletionSource<CameraSettings>(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.SettingsReceived += (_, settings) => received.TrySetResult(settings);
+
+        await session.StartAsync(timeout.Token);
+        var actual = await received.Task.WaitAsync(timeout.Token);
+        await server;
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(expected, session.CurrentSettings);
+    }
+
     private static TcpListener StartListener(out int port)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

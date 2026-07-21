@@ -28,12 +28,14 @@ public sealed class TransportSession : IAsyncDisposable
     public TransportEndpoint Endpoint { get; }
     public DateTimeOffset ConnectedAt { get; private set; }
     public HelloMessage? Hello { get; private set; }
+    public CameraSettings? CurrentSettings { get; private set; }
     public bool IsConnected { get; private set; }
     public string DeviceId => Hello?.DeviceId ?? Endpoint.ExpectedDeviceId ?? Endpoint.Id;
     public string DeviceName => Hello?.DeviceName ?? Endpoint.DeviceName;
     public double RoundTripMilliseconds => BitConverter.Int64BitsToDouble(Interlocked.Read(ref _roundTripBits));
 
     public event Action<TransportSession, VideoFrame>? FrameReceived;
+    public event Action<TransportSession, CameraSettings>? SettingsReceived;
     public event Action<TransportSession>? StateChanged;
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -78,6 +80,11 @@ public sealed class TransportSession : IAsyncDisposable
                         Interlocked.Exchange(ref _lastFrameTicks, DateTimeOffset.UtcNow.UtcTicks);
                         Interlocked.Exchange(ref _failures, 0);
                         FrameReceived?.Invoke(this, VideoFrame.FromPayload(message.Payload));
+                        break;
+                    case MessageType.Settings:
+                        var settings = JsonPayload.Deserialize<CameraSettings>(message.Payload).Validate();
+                        CurrentSettings = settings;
+                        SettingsReceived?.Invoke(this, settings);
                         break;
                     case MessageType.Pong:
                         HandlePong(message.Payload);

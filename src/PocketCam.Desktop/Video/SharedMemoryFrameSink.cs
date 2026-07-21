@@ -14,6 +14,7 @@ public sealed class SharedMemoryFrameSink : IDisposable
 
     private readonly MemoryMappedFile _mapping;
     private readonly MemoryMappedViewAccessor _view;
+    private byte[] _pixels = [];
     private int _sequence;
 
     public SharedMemoryFrameSink()
@@ -36,8 +37,8 @@ public sealed class SharedMemoryFrameSink : IDisposable
         var stride = checked(source.PixelWidth * 4);
         var byteCount = checked(stride * source.PixelHeight);
         if (byteCount > Capacity - HeaderSize) return;
-        var pixels = new byte[byteCount];
-        source.CopyPixels(pixels, stride, 0);
+        if (_pixels.Length < byteCount) _pixels = new byte[byteCount];
+        source.CopyPixels(_pixels, stride, 0);
 
         var writing = Interlocked.Add(ref _sequence, 2) - 1;
         _view.Write(12, writing); // Odd means a writer is active.
@@ -46,9 +47,10 @@ public sealed class SharedMemoryFrameSink : IDisposable
         _view.Write(24, stride);
         _view.Write(28, byteCount);
         _view.Write(32, timestampMicroseconds);
-        _view.WriteArray(HeaderSize, pixels, 0, pixels.Length);
+        _view.WriteArray(HeaderSize, _pixels, 0, byteCount);
         _view.Write(12, writing + 1); // Even means a complete frame.
-        _view.Flush();
+        // Memory-mapped writes are immediately visible to the virtual camera process.
+        // Flushing every frame forces disk synchronization and severely limits FPS.
     }
 
     public void Dispose()
