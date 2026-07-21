@@ -24,6 +24,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     private readonly IEndpointDiscovery[] _discoveries =
     [
         new WifiDiscoveryService(),
+        new LanProbeDiscoveryService(),
         new UsbDiscoveryService(),
         new BluetoothDiscoveryService(),
     ];

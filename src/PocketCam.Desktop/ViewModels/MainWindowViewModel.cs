@@ -22,7 +22,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private readonly Stopwatch _fpsClock = Stopwatch.StartNew();
     private BitmapSource? _previewFrame;
-    private string _statusText = "Procurando celulares PocketCam…";
+    private string _statusText = "Procurando celulares PocketCam… No USB, autorize a Depuração USB.";
     private string _activeTransportLabel = "DESCOBERTO AUTOMATICAMENTE";
     private string _latencyText = "— ms";
     private double _framesPerSecond;
@@ -191,7 +191,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             var active = states.FirstOrDefault(item => item.Active);
             if (active is null)
             {
-                StatusText = "Procurando celulares PocketCam…";
+                StatusText = "Procurando celulares PocketCam… No USB, autorize a Depuração USB.";
                 ActiveTransportLabel = "DESCOBERTO AUTOMATICAMENTE";
                 LatencyText = "— ms";
             }

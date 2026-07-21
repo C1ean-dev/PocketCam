@@ -32,6 +32,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -53,16 +54,20 @@ import com.pocketcam.android.updates.GitHubReleaseUpdateChecker
 import com.pocketcam.android.updates.ReleaseUpdate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 class MainActivity : ComponentActivity() {
     private lateinit var settingsStore: SettingsStore
     private val updateChecker = GitHubReleaseUpdateChecker()
+    private val appVersionName by lazy { pocketCamVersionName().substringBefore('-') }
     private var availableUpdate by mutableStateOf<ReleaseUpdate?>(null)
-    private var updateStatus by mutableStateOf("Versão ${BuildConfig.VERSION_NAME.substringBefore('-')}")
+    private var updateStatus by mutableStateOf("")
     private var checkingForUpdates = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        updateStatus = "Versão $appVersionName"
         settingsStore = SettingsStore(this)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startStreaming()
@@ -70,19 +75,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = pocketCamColors) {
                 val permissions = requiredPermissions()
-                val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-                    if (result[Manifest.permission.CAMERA] == true) startStreaming()
+                var hasCamera by remember {
+                    mutableStateOf(
+                        ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.CAMERA,
+                        ) == PackageManager.PERMISSION_GRANTED,
+                    )
                 }
-                val hasCamera = ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.CAMERA,
-                ) == PackageManager.PERMISSION_GRANTED
+                val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                    hasCamera = result[Manifest.permission.CAMERA] == true || ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.CAMERA,
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasCamera) startStreaming()
+                }
+                LaunchedEffect(Unit) {
+                    if (!hasCamera) launcher.launch(permissions)
+                }
                 PocketCamScreen(
                     store = settingsStore,
                     hasCameraPermission = hasCamera,
                     onRequestPermission = { launcher.launch(permissions) },
                     onStart = ::startStreaming,
                     onStop = ::stopStreaming,
+                    appVersionName = appVersionName,
                     updateStatus = updateStatus,
                     availableUpdate = availableUpdate,
                     onCheckForUpdates = { checkForUpdates(userInitiated = true) },
@@ -112,9 +129,9 @@ class MainActivity : ComponentActivity() {
         if (userInitiated) updateStatus = "Verificando atualizações…"
         lifecycleScope.launch {
             try {
-                val update = updateChecker.findUpdate()
+                val update = updateChecker.findUpdate(appVersionName)
                 if (update == null) {
-                    updateStatus = "Versão ${BuildConfig.VERSION_NAME.substringBefore('-')} · atualizada"
+                    updateStatus = "Versão $appVersionName · atualizada"
                 } else {
                     updateStatus = "Versão ${update.version} disponível"
                     availableUpdate = update
@@ -125,7 +142,7 @@ class MainActivity : ComponentActivity() {
                 updateStatus = if (userInitiated) {
                     "Não foi possível consultar as releases. Tente novamente."
                 } else {
-                    "Versão ${BuildConfig.VERSION_NAME.substringBefore('-')}"
+                    "Versão $appVersionName"
                 }
             } finally {
                 checkingForUpdates = false
@@ -156,6 +173,7 @@ private fun PocketCamScreen(
     onRequestPermission: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
+    appVersionName: String,
     updateStatus: String,
     availableUpdate: ReleaseUpdate?,
     onCheckForUpdates: () -> Unit,
@@ -164,6 +182,7 @@ private fun PocketCamScreen(
 ) {
     val settings by store.settings.collectAsState()
     val status by ServiceStatus.value.collectAsState()
+    val localAddresses = remember { localIpv4Addresses() }
     var fps by remember(settings.fps) { mutableFloatStateOf(settings.fps.toFloat()) }
     var quality by remember(settings.jpegQuality) { mutableFloatStateOf(settings.jpegQuality.toFloat()) }
 
@@ -174,7 +193,7 @@ private fun PocketCamScreen(
             text = {
                 Text(
                     "Uma nova versão está disponível.\n\n" +
-                        "Instalada: ${BuildConfig.VERSION_NAME.substringBefore('-')}\n" +
+                        "Instalada: $appVersionName\n" +
                         "Disponível: ${availableUpdate.version}\n\n" +
                         "Deseja abrir o download do APK agora?",
                 )
@@ -197,6 +216,11 @@ private fun PocketCamScreen(
                 Text(
                     "Wi-Fi/USB: ${status.wifiClients}  ·  Bluetooth: ${status.bluetoothClients}",
                     color = Color(0xFFA8C7C8),
+                )
+                Text(
+                    if (localAddresses.isEmpty()) "Wi-Fi sem endereço local" else "Wi-Fi: ${localAddresses.joinToString()} :17890",
+                    color = Color(0xFFA8C7C8),
+                    fontSize = 12.sp,
                 )
                 status.lastError?.let { Text(it, color = Color(0xFFFF938A), fontSize = 12.sp) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -250,8 +274,30 @@ private fun PocketCamScreen(
             color = Color(0xFFA8C7C8),
             fontSize = 13.sp,
         )
+        Text(
+            "Para usar o cabo, ative Depuração USB nas Opções do desenvolvedor e autorize este computador.",
+            color = Color(0xFFA8C7C8),
+            fontSize = 12.sp,
+        )
     }
 }
+
+private fun localIpv4Addresses(): List<String> = buildList {
+    runCatching {
+        val interfaces = NetworkInterface.getNetworkInterfaces()
+        while (interfaces.hasMoreElements()) {
+            val networkInterface = interfaces.nextElement()
+            if (!networkInterface.isUp || networkInterface.isLoopback) continue
+            val addresses = networkInterface.inetAddresses
+            while (addresses.hasMoreElements()) {
+                val address = addresses.nextElement()
+                if (address is Inet4Address && !address.isLoopbackAddress && !address.isLinkLocalAddress) {
+                    add(address.hostAddress ?: continue)
+                }
+            }
+        }
+    }
+}.distinct().sorted()
 
 private val pocketCamColors = darkColorScheme(
     primary = Color(0xFF00D4A6),

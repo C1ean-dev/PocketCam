@@ -14,6 +14,7 @@ object WireProtocol {
     const val TCP_PORT = 17890
     const val DISCOVERY_PORT = 17891
     const val DISCOVERY_GROUP = "239.255.88.88"
+    const val DISCOVERY_PROBE = "PCM1_DISCOVER"
     const val BLUETOOTH_UUID = "7d5a6bf8-3c31-4f30-9fb8-84b85b8c9d11"
     private val MAGIC = byteArrayOf('P'.code.toByte(), 'C'.code.toByte(), 'M'.code.toByte(), '1'.code.toByte())
 
@@ -87,4 +88,3 @@ object WireProtocol {
 }
 
 class ProtocolException(message: String) : java.io.IOException(message)
-

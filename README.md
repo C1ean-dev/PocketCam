@@ -7,6 +7,7 @@ PocketCam transforma um celular Android em webcam para Windows. O desktop encont
 - captura no Android com CameraX, câmera frontal/traseira e controle de resolução, FPS e qualidade JPEG;
 - protocolo binário versionado, com checksum, keep-alive e descarte de frames atrasados;
 - conexão Wi-Fi por TCP de baixa latência e descoberta automática por NSD + beacon UDP;
+- descoberta Wi-Fi resiliente por anúncio passivo, solicitação UDP ativa e sondagem autenticada da rede local;
 - conexão USB por túnel ADB, escolhida acima do Wi-Fi quando o cabo está disponível;
 - fallback Bluetooth Classic por RFCOMM, indicado para resoluções e FPS reduzidos;
 - seleção contínua `USB > Wi-Fi > Bluetooth`, com histerese e failover imediato;

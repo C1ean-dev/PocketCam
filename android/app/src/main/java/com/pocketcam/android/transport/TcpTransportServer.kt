@@ -19,6 +19,7 @@ class TcpTransportServer(
     private val scope: CoroutineScope,
     private val frameHub: FrameHub,
     private val settingsStore: SettingsStore,
+    private val appVersion: String,
 ) {
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
@@ -45,7 +46,7 @@ class TcpTransportServer(
                         try {
                             ClientSession(
                                 socket.getInputStream(), socket.getOutputStream(), socket,
-                                frameHub, settingsStore, this,
+                                frameHub, settingsStore, this, appVersion,
                             ).run()
                         } finally {
                             sockets -= socket

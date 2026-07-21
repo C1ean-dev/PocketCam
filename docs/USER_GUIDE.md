@@ -17,7 +17,7 @@ Para reduzir travamentos em redes congestionadas, use 1280×720 a 20 FPS. Blueto
 ## Solução de problemas
 
 - **USB não aparece:** execute `adb devices`, desbloqueie o telefone e aceite a autorização. Confira também se o driver USB do fabricante está instalado.
-- **Wi-Fi não aparece:** confirme que a rede permite comunicação entre clientes; redes de convidados geralmente bloqueiam multicast e broadcast.
+- **Wi-Fi não aparece:** no Android, confirme que o cartão mostra **Transmitindo** e um endereço Wi-Fi. O desktop tenta anúncio, solicitação ativa e sondagem local; ainda assim, redes de convidados podem bloquear toda comunicação entre clientes.
 - **Bluetooth não aparece:** pareie os dispositivos no Windows e reabra os dois aplicativos.
 - **A câmera virtual não aparece:** confirme Windows 10 build 19041+, habilite o acesso à câmera em Privacidade e segurança e clique novamente em **Instalar / reparar câmera**. Reinicie o aplicativo consumidor após a instalação. O pacote é x64 e não aparece em aplicativos de vídeo 32 bits.
 - **A verificação de atualização falha:** confirme o acesso a `api.github.com` e tente novamente pelo botão. Essa falha não afeta a transmissão da câmera.

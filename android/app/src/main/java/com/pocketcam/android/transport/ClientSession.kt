@@ -1,7 +1,6 @@
 package com.pocketcam.android.transport
 
 import android.os.Build
-import com.pocketcam.android.BuildConfig
 import com.pocketcam.android.protocol.FramePayload
 import com.pocketcam.android.protocol.WireProtocol
 import com.pocketcam.android.settings.SettingsStore
@@ -29,6 +28,7 @@ class ClientSession(
     private val frameHub: FrameHub,
     private val settingsStore: SettingsStore,
     private val scope: CoroutineScope,
+    private val appVersion: String,
 ) {
     private val sequence = AtomicInteger(1)
 
@@ -61,7 +61,7 @@ class ClientSession(
     private fun helloPayload(): ByteArray = JSONObject()
         .put("deviceId", deviceId())
         .put("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
-        .put("appVersion", BuildConfig.VERSION_NAME)
+        .put("appVersion", appVersion)
         .put("capabilities", org.json.JSONArray(listOf("jpeg", "settings", "wifi", "usb-adb", "bluetooth-rfcomm")))
         .toString()
         .toByteArray(Charsets.UTF_8)

@@ -25,6 +25,7 @@ class BluetoothTransportServer(
     private val scope: CoroutineScope,
     private val frameHub: FrameHub,
     private val settingsStore: SettingsStore,
+    private val appVersion: String,
 ) {
     private var serverSocket: BluetoothServerSocket? = null
     private var acceptJob: Job? = null
@@ -51,7 +52,7 @@ class BluetoothTransportServer(
                         try {
                             ClientSession(
                                 socket.inputStream, socket.outputStream, socket,
-                                frameHub, settingsStore, this,
+                                frameHub, settingsStore, this, appVersion,
                             ).run()
                         } finally {
                             sockets -= socket

@@ -25,6 +25,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.pocketcam.android.MainActivity
 import com.pocketcam.android.R
+import com.pocketcam.android.pocketCamVersionName
 import com.pocketcam.android.settings.SettingsStore
 import com.pocketcam.android.settings.StreamSettings
 import com.pocketcam.android.stream.EncodedFrame
@@ -53,14 +54,16 @@ class CameraStreamingService : LifecycleService() {
     private var settingsJob: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
     private val lastFrameNanos = AtomicLong(0)
 
     override fun onCreate() {
         super.onCreate()
         settingsStore = SettingsStore(this)
-        tcpServer = TcpTransportServer(lifecycleScope, frameHub, settingsStore)
-        bluetoothServer = BluetoothTransportServer(this, lifecycleScope, frameHub, settingsStore)
-        discovery = DiscoveryAdvertiser(this, lifecycleScope)
+        val appVersion = pocketCamVersionName()
+        tcpServer = TcpTransportServer(lifecycleScope, frameHub, settingsStore, appVersion)
+        bluetoothServer = BluetoothTransportServer(this, lifecycleScope, frameHub, settingsStore, appVersion)
+        discovery = DiscoveryAdvertiser(this, lifecycleScope, appVersion)
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, notification())
         acquireLocks()
@@ -83,6 +86,7 @@ class CameraStreamingService : LifecycleService() {
         bluetoothServer.stop()
         tcpServer.stop()
         wifiLock?.takeIf { it.isHeld }?.release()
+        multicastLock?.takeIf { it.isHeld }?.release()
         wakeLock?.takeIf { it.isHeld }?.release()
         ServiceStatus.update { it.copy(running = false, wifiClients = 0, bluetoothClients = 0) }
         super.onDestroy()
@@ -191,6 +195,10 @@ class CameraStreamingService : LifecycleService() {
         val wifi = applicationContext.getSystemService(WifiManager::class.java)
         val mode = if (Build.VERSION.SDK_INT >= 29) WifiManager.WIFI_MODE_FULL_LOW_LATENCY else WifiManager.WIFI_MODE_FULL_HIGH_PERF
         wifiLock = wifi.createWifiLock(mode, "PocketCam::Streaming").apply { acquire() }
+        multicastLock = wifi.createMulticastLock("PocketCam::Discovery").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
     }
 
     companion object {

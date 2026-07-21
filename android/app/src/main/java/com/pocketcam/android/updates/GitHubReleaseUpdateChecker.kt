@@ -1,6 +1,5 @@
 package com.pocketcam.android.updates
 
-import com.pocketcam.android.BuildConfig
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
@@ -16,8 +15,8 @@ data class ReleaseUpdate(
 )
 
 class GitHubReleaseUpdateChecker {
-    suspend fun findUpdate(): ReleaseUpdate? = withContext(Dispatchers.IO) {
-        val installedVersion = AppVersion.parse(BuildConfig.VERSION_NAME) ?: return@withContext null
+    suspend fun findUpdate(installedVersionName: String): ReleaseUpdate? = withContext(Dispatchers.IO) {
+        val installedVersion = AppVersion.parse(installedVersionName) ?: return@withContext null
         val connection = (URL(LATEST_RELEASE_ENDPOINT).openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = 10_000
