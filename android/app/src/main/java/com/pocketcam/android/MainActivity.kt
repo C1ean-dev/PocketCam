@@ -16,7 +16,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +34,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -312,12 +312,17 @@ private fun PocketCamScreen(
         )
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(Color(0xFF071A1D)).verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
     ) {
-        Text("POCKETCAM", color = Color(0xFF00D4A6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Text("Seu Android, agora uma webcam.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text("POCKETCAM", color = Color(0xFF00D4A6), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Seu Android, agora uma webcam.", fontSize = 27.sp, fontWeight = FontWeight.Bold)
 
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF102B2F)), shape = RoundedCornerShape(18.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -397,11 +402,12 @@ private fun PocketCamScreen(
             color = Color(0xFFA8C7C8),
             fontSize = 13.sp,
         )
-        Text(
-            "Para usar o cabo, ative Depuração USB nas Opções do desenvolvedor e autorize este computador.",
-            color = Color(0xFFA8C7C8),
-            fontSize = 12.sp,
-        )
+            Text(
+                "Para usar o cabo, ative Depuração USB nas Opções do desenvolvedor e autorize este computador.",
+                color = Color(0xFFA8C7C8),
+                fontSize = 12.sp,
+            )
+        }
     }
 }
 

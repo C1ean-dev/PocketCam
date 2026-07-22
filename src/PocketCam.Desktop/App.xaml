@@ -12,6 +12,27 @@
             <Setter Property="Foreground" Value="White" />
             <Setter Property="FontFamily" Value="Segoe UI" />
         </Style>
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="{StaticResource PanelLightBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Padding" Value="10,7" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="Foreground" Value="#041416" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="Foreground" Value="#041416" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                    <Setter Property="Opacity" Value="0.65" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="{StaticResource PanelLightBrush}" />
@@ -29,13 +50,21 @@
             </Setter>
         </Style>
         <Style TargetType="ComboBox">
+            <Style.Resources>
+                <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#17383C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#17383C" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#00D4A6" />
+                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#041416" />
+            </Style.Resources>
             <Setter Property="Padding" Value="10,7" />
             <Setter Property="Background" Value="{StaticResource PanelLightBrush}" />
             <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="#31575A" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
         <Style TargetType="Slider">
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
         </Style>
     </Application.Resources>
 </Application>
-
