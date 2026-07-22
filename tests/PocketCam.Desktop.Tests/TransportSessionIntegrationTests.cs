@@ -146,6 +146,36 @@ public sealed class TransportSessionIntegrationTests
         Assert.False(control.Stream);
     }
 
+    [Fact]
+    public async Task PerformanceMetricsFromAndroidUpdateTheSessionState()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var listener = StartListener(out var port);
+        var expected = new StreamingMetrics(60, 59.8, 58.7, 58.1, 1.1);
+        var server = Task.Run(async () =>
+        {
+            using var client = await listener.AcceptTcpClientAsync(timeout.Token);
+            await using var stream = client.GetStream();
+            await ProtocolCodec.WriteAsync(
+                stream,
+                ProtocolMessage.Create(MessageType.Status, 1, JsonPayload.Serialize(expected)),
+                timeout.Token);
+            await Task.Delay(100, timeout.Token);
+        }, timeout.Token);
+
+        var endpoint = new TransportEndpoint("usb:metrics", TransportKind.Usb, "127.0.0.1", port, "Android USB");
+        await using var session = new TransportSession(endpoint);
+        var received = new TaskCompletionSource<StreamingMetrics>(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.MetricsReceived += (_, metrics) => received.TrySetResult(metrics);
+
+        await session.StartAsync(timeout.Token);
+        var actual = await received.Task.WaitAsync(timeout.Token);
+        await server;
+
+        Assert.Equal(expected, actual);
+        Assert.Equal(expected, session.CurrentMetrics);
+    }
+
     private static TcpListener StartListener(out int port)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

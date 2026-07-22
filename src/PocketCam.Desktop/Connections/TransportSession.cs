@@ -30,6 +30,7 @@ public sealed class TransportSession : IAsyncDisposable
     public DateTimeOffset ConnectedAt { get; private set; }
     public HelloMessage? Hello { get; private set; }
     public CameraSettings? CurrentSettings { get; private set; }
+    public StreamingMetrics? CurrentMetrics { get; private set; }
     public bool IsConnected { get; private set; }
     public string DeviceId => Hello?.DeviceId ?? Endpoint.ExpectedDeviceId ?? Endpoint.Id;
     public string DeviceName => Hello?.DeviceName ?? Endpoint.DeviceName;
@@ -37,6 +38,7 @@ public sealed class TransportSession : IAsyncDisposable
 
     public event Action<TransportSession, VideoFrame>? FrameReceived;
     public event Action<TransportSession, CameraSettings>? SettingsReceived;
+    public event Action<TransportSession, StreamingMetrics>? MetricsReceived;
     public event Action<TransportSession>? StateChanged;
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -107,6 +109,11 @@ public sealed class TransportSession : IAsyncDisposable
                         break;
                     case MessageType.Pong:
                         HandlePong(message.Payload);
+                        break;
+                    case MessageType.Status:
+                        var metrics = JsonPayload.Deserialize<StreamingMetrics>(message.Payload);
+                        CurrentMetrics = metrics;
+                        MetricsReceived?.Invoke(this, metrics);
                         break;
                     case MessageType.Error:
                         Interlocked.Increment(ref _failures);

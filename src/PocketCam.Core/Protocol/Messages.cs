@@ -12,6 +12,13 @@ public sealed record HelloMessage(
 public sealed record StreamControl(
     [property: JsonPropertyName("stream")] bool Stream);
 
+public sealed record StreamingMetrics(
+    [property: JsonPropertyName("targetFps")] int TargetFps,
+    [property: JsonPropertyName("cameraFps")] double CameraFps,
+    [property: JsonPropertyName("encodedFps")] double EncodedFps,
+    [property: JsonPropertyName("transmittedFps")] double TransmittedFps,
+    [property: JsonPropertyName("droppedFps")] double DroppedFps);
+
 public sealed record CameraSettings(
     [property: JsonPropertyName("width")] int Width = 1280,
     [property: JsonPropertyName("height")] int Height = 720,

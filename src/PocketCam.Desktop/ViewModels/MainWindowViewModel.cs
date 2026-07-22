@@ -23,6 +23,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly Stopwatch _fpsClock = Stopwatch.StartNew();
     private BitmapSource? _previewFrame;
     private BitmapSource? _pendingPreviewFrame;
+    private string? _activeEndpointId;
     private int _previewUpdateQueued;
     private string _statusText = "Procurando celulares PocketCam… No USB, autorize a Depuração USB.";
     private string _activeTransportLabel = "DESCOBERTO AUTOMATICAMENTE";
@@ -34,6 +35,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private int _jpegQuality = 80;
     private string _selectedLens = "Traseira";
     private string _settingsStatusText = "Aguardando configurações do celular…";
+    private string _performanceStatusText = "Aguardando métricas de desempenho…";
     private string _updateStatusText = $"Versão {ApplicationVersion.Format(ApplicationVersion.Current)}";
     private bool _checkingForUpdates;
     private bool _disposed;
@@ -43,6 +45,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _dispatcher = dispatcher;
         _connectionManager.ActiveFrameReceived += OnFrameReceived;
         _connectionManager.SettingsChanged += OnSettingsChanged;
+        _connectionManager.MetricsChanged += OnMetricsChanged;
         _connectionManager.StateChanged += OnStateChanged;
         ApplySettingsCommand = new AsyncCommand(ApplySettingsAsync);
         InstallVirtualCameraCommand = new AsyncCommand(InstallVirtualCameraAsync);
@@ -77,6 +80,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public int JpegQuality { get => _jpegQuality; set => SetProperty(ref _jpegQuality, value); }
     public string SelectedLens { get => _selectedLens; set => SetProperty(ref _selectedLens, value); }
     public string SettingsStatusText { get => _settingsStatusText; private set => SetProperty(ref _settingsStatusText, value); }
+    public string PerformanceStatusText { get => _performanceStatusText; private set => SetProperty(ref _performanceStatusText, value); }
     public string UpdateStatusText { get => _updateStatusText; private set => SetProperty(ref _updateStatusText, value); }
 
     public Task StartAsync() => _connectionManager.StartAsync();
@@ -215,12 +219,19 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             var active = states.FirstOrDefault(item => item.Active);
             if (active is null)
             {
+                _activeEndpointId = null;
                 StatusText = "Procurando celulares PocketCam… No USB, autorize a Depuração USB.";
                 ActiveTransportLabel = "DESCOBERTO AUTOMATICAMENTE";
                 LatencyText = "— ms";
+                PerformanceStatusText = "Aguardando métricas de desempenho…";
             }
             else
             {
+                if (_activeEndpointId != active.Id)
+                {
+                    _activeEndpointId = active.Id;
+                    PerformanceStatusText = "Aguardando métricas de desempenho…";
+                }
                 StatusText = $"{active.DeviceName} conectado · {selection.Reason}";
                 ActiveTransportLabel = active.Kind switch
                 {
@@ -243,6 +254,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void OnSettingsChanged(CameraSettings settings)
     {
         _dispatcher.BeginInvoke(() => ApplyConfirmedSettings(settings));
+    }
+
+    private void OnMetricsChanged(StreamingMetrics metrics)
+    {
+        _dispatcher.BeginInvoke(() =>
+        {
+            PerformanceStatusText =
+                $"Meta {metrics.TargetFps} · câmera {metrics.CameraFps:F1} · " +
+                $"codificados {metrics.EncodedFps:F1} · transmitidos {metrics.TransmittedFps:F1} · " +
+                $"descartados {metrics.DroppedFps:F1} FPS";
+        });
     }
 
     private void ApplyConfirmedSettings(CameraSettings settings)
@@ -300,6 +322,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _lifetimeCancellation.Cancel();
         _connectionManager.ActiveFrameReceived -= OnFrameReceived;
         _connectionManager.SettingsChanged -= OnSettingsChanged;
+        _connectionManager.MetricsChanged -= OnMetricsChanged;
         _connectionManager.StateChanged -= OnStateChanged;
         _connectionManager.DisposeAsync().AsTask().GetAwaiter().GetResult();
         _updateService.Dispose();

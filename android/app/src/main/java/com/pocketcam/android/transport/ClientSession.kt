@@ -1,6 +1,7 @@
 package com.pocketcam.android.transport
 
 import android.os.Build
+import com.pocketcam.android.protocol.PerformanceStatusPayload
 import com.pocketcam.android.protocol.StreamControlPayload
 import com.pocketcam.android.protocol.WireProtocol
 import com.pocketcam.android.settings.SettingsStore
@@ -49,6 +50,11 @@ class ClientSession(
                 launchWriter {
                     settingsStore.settings.collect { settings ->
                         send(WireProtocol.Type.SETTINGS, SettingsPayload.encode(settings))
+                    }
+                },
+                launchWriter {
+                    ServiceStatus.value.collect { status ->
+                        send(WireProtocol.Type.STATUS, PerformanceStatusPayload.encode(status))
                     }
                 },
             )

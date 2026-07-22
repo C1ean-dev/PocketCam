@@ -31,11 +31,15 @@ public sealed class ConnectionManager : IAsyncDisposable
     ];
     private readonly List<Task> _backgroundTasks = [];
     private readonly object _settingsGate = new();
+    private readonly object _metricsGate = new();
     private string? _lastSettingsDeviceId;
     private CameraSettings? _lastSettings;
+    private string? _lastMetricsEndpointId;
+    private StreamingMetrics? _lastMetrics;
 
     public event Action<VideoFrame, TransportSession>? ActiveFrameReceived;
     public event Action<CameraSettings>? SettingsChanged;
+    public event Action<StreamingMetrics>? MetricsChanged;
     public event Action<IReadOnlyList<ConnectionState>, SelectionResult>? StateChanged;
 
     public Task StartAsync()
@@ -108,6 +112,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         var session = new TransportSession(endpoint);
         session.FrameReceived += OnFrameReceived;
         session.SettingsReceived += OnSettingsReceived;
+        session.MetricsReceived += OnMetricsReceived;
         session.StateChanged += OnSessionStateChanged;
         try
         {
@@ -159,6 +164,12 @@ public sealed class ConnectionManager : IAsyncDisposable
         if (selection.ActiveId == session.Endpoint.Id) PublishActiveSettings(selection);
     }
 
+    private void OnMetricsReceived(TransportSession session, StreamingMetrics metrics)
+    {
+        var selection = Evaluate();
+        if (selection.ActiveId == session.Endpoint.Id) PublishActiveMetrics(selection);
+    }
+
     private async Task MonitorAsync(CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
@@ -195,6 +206,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         StateChanged?.Invoke(states, selection);
         UpdateStreamingRoutes(selection);
         PublishActiveSettings(selection);
+        PublishActiveMetrics(selection);
     }
 
     private void UpdateStreamingRoutes(SelectionResult selection)
@@ -238,6 +250,24 @@ public sealed class ConnectionManager : IAsyncDisposable
             _lastSettings = settings;
         }
         SettingsChanged?.Invoke(settings);
+    }
+
+    private void PublishActiveMetrics(SelectionResult selection)
+    {
+        if (selection.ActiveId is null ||
+            !_sessions.TryGetValue(selection.ActiveId, out var active) ||
+            active.CurrentMetrics is not { } metrics)
+        {
+            return;
+        }
+
+        lock (_metricsGate)
+        {
+            if (_lastMetricsEndpointId == active.Endpoint.Id && _lastMetrics == metrics) return;
+            _lastMetricsEndpointId = active.Endpoint.Id;
+            _lastMetrics = metrics;
+        }
+        MetricsChanged?.Invoke(metrics);
     }
 
     public async ValueTask DisposeAsync()
