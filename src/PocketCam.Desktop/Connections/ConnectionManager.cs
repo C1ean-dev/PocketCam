@@ -21,6 +21,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     private readonly ConcurrentDictionary<string, TransportSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _connecting = new(StringComparer.Ordinal);
     private readonly ConnectionArbiter _arbiter = new();
+    private readonly object _arbiterGate = new();
     private readonly IEndpointDiscovery[] _discoveries =
     [
         new WifiDiscoveryService(),
@@ -167,9 +168,14 @@ public sealed class ConnectionManager : IAsyncDisposable
         }
     }
 
-    private SelectionResult Evaluate() => _arbiter.Evaluate(
-        _sessions.Values.Select(session => session.Snapshot).ToArray(),
-        DateTimeOffset.UtcNow);
+    private SelectionResult Evaluate()
+    {
+        var snapshots = _sessions.Values.Select(session => session.Snapshot).ToArray();
+        lock (_arbiterGate)
+        {
+            return _arbiter.Evaluate(snapshots, DateTimeOffset.UtcNow);
+        }
+    }
 
     private void PublishState()
     {
@@ -187,7 +193,33 @@ public sealed class ConnectionManager : IAsyncDisposable
             .ThenByDescending(state => state.Kind)
             .ToArray();
         StateChanged?.Invoke(states, selection);
+        UpdateStreamingRoutes(selection);
         PublishActiveSettings(selection);
+    }
+
+    private void UpdateStreamingRoutes(SelectionResult selection)
+    {
+        foreach (var session in _sessions.Values.Where(item => item.IsConnected))
+        {
+            var enabled = session.Endpoint.Id == selection.ActiveId;
+            _ = ApplyStreamingRouteAsync(session, enabled);
+        }
+    }
+
+    private async Task ApplyStreamingRouteAsync(TransportSession session, bool enabled)
+    {
+        try
+        {
+            await session.SetStreamingEnabledAsync(enabled, _cancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
+        {
+            // Normal shutdown.
+        }
+        catch
+        {
+            // The monitor retries a failed control write or replaces a dead session.
+        }
     }
 
     private void PublishActiveSettings(SelectionResult selection)

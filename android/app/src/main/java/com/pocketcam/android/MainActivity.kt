@@ -337,6 +337,13 @@ private fun PocketCamScreen(
                     color = if (status.encodedFps >= 55.0 || !status.running) Color(0xFFA8C7C8) else Color(0xFFFFC46B),
                     fontSize = 12.sp,
                 )
+                if (status.wifiClients + status.bluetoothClients > 0) {
+                    Text(
+                        "Transmitidos pela rota ativa: ${status.transmittedFps.toInt()} FPS",
+                        color = if (status.transmittedFps >= 55.0) Color(0xFFA8C7C8) else Color(0xFFFFC46B),
+                        fontSize = 12.sp,
+                    )
+                }
                 if (status.droppedFps >= 0.5) {
                     Text(
                         "Descartados para manter baixa latência: ${status.droppedFps.toInt()} FPS",

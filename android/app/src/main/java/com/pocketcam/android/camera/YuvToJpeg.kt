@@ -4,19 +4,18 @@ import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
 import androidx.camera.core.ImageProxy
-import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
-class YuvToJpegEncoder {
+internal class YuvToJpegEncoder {
     private var nv21 = ByteArray(0)
-    private var output = ByteArrayOutputStream()
+    private var output = DetachableByteArrayOutputStream()
 
     @Synchronized
-    fun encode(image: ImageProxy, quality: Int): ByteArray {
+    fun encode(image: ImageProxy, quality: Int): EncodedJpeg {
         val requiredBytes = image.width * image.height * 3 / 2
         if (nv21.size != requiredBytes) {
             nv21 = ByteArray(requiredBytes)
-            output = ByteArrayOutputStream((image.width * image.height / 4).coerceAtLeast(16 * 1024))
+            output = DetachableByteArrayOutputStream(image.width * image.height / 4)
         } else {
             output.reset()
         }
@@ -26,14 +25,14 @@ class YuvToJpegEncoder {
     }
 
     @Synchronized
-    fun encode(nv21: ByteArray, width: Int, height: Int, quality: Int): ByteArray {
+    fun encode(nv21: ByteArray, width: Int, height: Int, quality: Int): EncodedJpeg {
         val requiredBytes = width * height * 3 / 2
         require(nv21.size >= requiredBytes)
         if (output.size() > 0) output.reset()
         val success = YuvImage(nv21, ImageFormat.NV21, width, height, null)
             .compressToJpeg(Rect(0, 0, width, height), quality, output)
         check(success) { "Android JPEG encoder rejected the camera frame" }
-        return output.toByteArray()
+        return output.detach()
     }
 }
 

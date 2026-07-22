@@ -133,6 +133,7 @@ class CameraStreamingService : LifecycleService() {
                 targetFps = 0,
                 cameraFps = 0.0,
                 encodedFps = 0.0,
+                transmittedFps = 0.0,
                 droppedFps = 0.0,
             )
         }
@@ -283,7 +284,8 @@ class CameraStreamingService : LifecycleService() {
                 width = frame.width,
                 height = frame.height,
                 rotation = frame.rotation,
-                jpeg = jpeg,
+                jpeg = jpeg.bytes,
+                jpegLength = jpeg.length,
                 capturedAtMicros = frame.capturedAtMicros,
             )
         } catch (error: Exception) {
@@ -324,9 +326,15 @@ class CameraStreamingService : LifecycleService() {
                 lastSample = now
                 val cameraRate = cameraFrames.getAndSet(0) / elapsedSeconds
                 val encodedRate = encodedFrames.getAndSet(0) / elapsedSeconds
+                val transmittedRate = ServiceStatus.takeTransmittedFrames() / elapsedSeconds
                 val droppedRate = droppedFrames.getAndSet(0) / elapsedSeconds
                 ServiceStatus.update {
-                    it.copy(cameraFps = cameraRate, encodedFps = encodedRate, droppedFps = droppedRate)
+                    it.copy(
+                        cameraFps = cameraRate,
+                        encodedFps = encodedRate,
+                        transmittedFps = transmittedRate,
+                        droppedFps = droppedRate,
+                    )
                 }
             }
         }

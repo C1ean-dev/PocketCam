@@ -10,6 +10,7 @@ data class EncodedFrame(
     val height: Int,
     val rotation: Int,
     val jpeg: ByteArray,
+    val jpegLength: Int,
     val capturedAtMicros: Long,
 )
 

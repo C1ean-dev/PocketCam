@@ -1,10 +1,12 @@
 package com.pocketcam.android.transport
 
 import android.os.Build
+import com.pocketcam.android.protocol.StreamControlPayload
 import com.pocketcam.android.protocol.WireProtocol
 import com.pocketcam.android.settings.SettingsStore
 import com.pocketcam.android.settings.SettingsPayload
 import com.pocketcam.android.stream.FrameHub
+import com.pocketcam.android.stream.ServiceStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +33,8 @@ class ClientSession(
     private val appVersion: String,
 ) {
     private val sequence = AtomicInteger(1)
+    @Volatile
+    private var streamFrames = true
 
     suspend fun run() {
         var writers: List<Job> = emptyList()
@@ -54,6 +58,7 @@ class ClientSession(
                 when (message.type) {
                     WireProtocol.Type.PING -> send(WireProtocol.Type.PONG, message.payload)
                     WireProtocol.Type.SETTINGS -> applySettings(message.payload)
+                    WireProtocol.Type.STATUS -> applyStreamControl(message.payload)
                     else -> Unit
                 }
             }
@@ -91,7 +96,7 @@ class ClientSession(
         .put("deviceId", deviceId())
         .put("deviceName", "${Build.MANUFACTURER} ${Build.MODEL}".trim())
         .put("appVersion", appVersion)
-        .put("capabilities", org.json.JSONArray(listOf("jpeg", "settings", "settings-sync", "wifi", "usb-adb", "bluetooth-rfcomm")))
+        .put("capabilities", org.json.JSONArray(listOf("jpeg", "settings", "settings-sync", "route-control", "wifi", "usb-adb", "bluetooth-rfcomm")))
         .toString()
         .toByteArray(Charsets.UTF_8)
 
@@ -105,6 +110,10 @@ class ClientSession(
             val response = JSONObject().put("message", "Configurações inválidas: ${error.message}")
             send(WireProtocol.Type.ERROR, response.toString().toByteArray(Charsets.UTF_8))
         }
+    }
+
+    private fun applyStreamControl(payload: ByteArray) {
+        StreamControlPayload.decode(payload)?.let { enabled -> streamFrames = enabled }
     }
 
     private fun send(type: WireProtocol.Type, payload: ByteArray, timestamp: Long = System.currentTimeMillis() * 1_000) {
@@ -122,7 +131,9 @@ class ClientSession(
     }
 
     private fun sendFrame(frame: com.pocketcam.android.stream.EncodedFrame) {
+        if (!streamFrames) return
         synchronized(output) {
+            if (!streamFrames) return
             WireProtocol.writeFrame(
                 output = output,
                 sequence = sequence.getAndIncrement(),
@@ -131,7 +142,9 @@ class ClientSession(
                 height = frame.height,
                 rotation = frame.rotation,
                 jpeg = frame.jpeg,
+                jpegLength = frame.jpegLength,
             )
+            ServiceStatus.recordTransmittedFrame()
         }
     }
 

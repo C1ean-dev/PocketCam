@@ -116,6 +116,36 @@ public sealed class TransportSessionIntegrationTests
         Assert.Equal(expected, session.CurrentSettings);
     }
 
+    [Fact]
+    public async Task StreamingControlIsSentToTheConnectedAndroidPeer()
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var listener = StartListener(out var port);
+        var receivedControl = new TaskCompletionSource<StreamControl>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var server = Task.Run(async () =>
+        {
+            using var client = await listener.AcceptTcpClientAsync(timeout.Token);
+            await using var stream = client.GetStream();
+            while (!timeout.IsCancellationRequested)
+            {
+                var message = await ProtocolCodec.ReadAsync(stream, timeout.Token);
+                if (message.Type != MessageType.Status) continue;
+                receivedControl.TrySetResult(JsonPayload.Deserialize<StreamControl>(message.Payload));
+                return;
+            }
+        }, timeout.Token);
+
+        var endpoint = new TransportEndpoint("wifi:standby", TransportKind.WiFi, "127.0.0.1", port, "Android Wi-Fi");
+        await using var session = new TransportSession(endpoint);
+        await session.StartAsync(timeout.Token);
+
+        await session.SetStreamingEnabledAsync(false, timeout.Token);
+        var control = await receivedControl.Task.WaitAsync(timeout.Token);
+        await server;
+
+        Assert.False(control.Stream);
+    }
+
     private static TcpListener StartListener(out int port)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);

@@ -58,10 +58,11 @@ object WireProtocol {
         height: Int,
         rotation: Int,
         jpeg: ByteArray,
+        jpegLength: Int = jpeg.size,
     ) {
         require(width in 1..7680 && height in 1..4320)
         require(rotation in setOf(0, 90, 180, 270))
-        require(jpeg.isNotEmpty())
+        require(jpegLength in 1..jpeg.size)
         val metadata = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).apply {
             putShort(width.toShort())
             putShort(height.toShort())
@@ -69,15 +70,15 @@ object WireProtocol {
             put(1) // JPEG
             put(0)
         }.array()
-        val payloadSize = metadata.size + jpeg.size
+        val payloadSize = metadata.size + jpegLength
         require(payloadSize <= MAX_PAYLOAD_SIZE) { "Payload too large" }
         val crc = CRC32().apply {
             update(metadata)
-            update(jpeg)
+            update(jpeg, 0, jpegLength)
         }.value.toInt()
         writeHeader(output, Type.FRAME, 0, payloadSize, sequence, timestampMicros, crc)
         output.write(metadata)
-        output.write(jpeg)
+        output.write(jpeg, 0, jpegLength)
         output.flush()
     }
 

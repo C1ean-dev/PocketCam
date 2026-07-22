@@ -14,15 +14,16 @@ public sealed class TransportSession : IAsyncDisposable
     private Task? _readerTask;
     private Task? _pingTask;
     private int _sequence;
-    private long _lastFrameTicks;
+    private long _lastActivityTicks;
     private long _roundTripBits;
     private int _failures;
+    private int _requestedStreaming = -1;
 
     public TransportSession(TransportEndpoint endpoint)
     {
         Endpoint = endpoint;
         ConnectedAt = DateTimeOffset.UtcNow;
-        _lastFrameTicks = ConnectedAt.UtcTicks;
+        _lastActivityTicks = ConnectedAt.UtcTicks;
     }
 
     public TransportEndpoint Endpoint { get; }
@@ -55,12 +56,30 @@ public sealed class TransportSession : IAsyncDisposable
         Endpoint.Kind,
         IsConnected,
         ConnectedAt,
-        new DateTimeOffset(Interlocked.Read(ref _lastFrameTicks), TimeSpan.Zero),
+        new DateTimeOffset(Interlocked.Read(ref _lastActivityTicks), TimeSpan.Zero),
         RoundTripMilliseconds,
         Volatile.Read(ref _failures));
 
     public Task SendSettingsAsync(CameraSettings settings, CancellationToken cancellationToken = default) =>
         SendAsync(MessageType.Settings, JsonPayload.Serialize(settings.Validate()), cancellationToken);
+
+    public async Task SetStreamingEnabledAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        var requested = enabled ? 1 : 0;
+        if (Interlocked.Exchange(ref _requestedStreaming, requested) == requested) return;
+        try
+        {
+            await SendAsync(
+                MessageType.Status,
+                JsonPayload.Serialize(new StreamControl(enabled)),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            Interlocked.CompareExchange(ref _requestedStreaming, -1, requested);
+            throw;
+        }
+    }
 
     private async Task ReadLoopAsync(CancellationToken cancellationToken)
     {
@@ -69,6 +88,7 @@ public sealed class TransportSession : IAsyncDisposable
             while (!cancellationToken.IsCancellationRequested)
             {
                 var message = await ProtocolCodec.ReadAsync(_stream!, cancellationToken).ConfigureAwait(false);
+                Interlocked.Exchange(ref _lastActivityTicks, DateTimeOffset.UtcNow.UtcTicks);
                 switch (message.Type)
                 {
                     case MessageType.Hello:
@@ -77,7 +97,6 @@ public sealed class TransportSession : IAsyncDisposable
                         StateChanged?.Invoke(this);
                         break;
                     case MessageType.Frame:
-                        Interlocked.Exchange(ref _lastFrameTicks, DateTimeOffset.UtcNow.UtcTicks);
                         Interlocked.Exchange(ref _failures, 0);
                         FrameReceived?.Invoke(this, VideoFrame.FromPayload(message.Payload));
                         break;

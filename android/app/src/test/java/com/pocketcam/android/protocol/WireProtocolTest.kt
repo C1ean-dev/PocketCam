@@ -59,7 +59,8 @@ class WireProtocolTest {
                 width = 640,
                 height = 480,
                 rotation = 90,
-                jpeg = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xd9.toByte()),
+                jpeg = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xd9.toByte(), 1, 2),
+                jpegLength = 4,
             )
         }.toByteArray()
 

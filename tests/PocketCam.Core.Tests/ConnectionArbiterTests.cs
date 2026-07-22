@@ -50,10 +50,10 @@ public sealed class ConnectionArbiterTests
     }
 
     [Fact]
-    public void StaleFramesMakeConnectionUnhealthy()
+    public void StaleActivityMakesConnectionUnhealthy()
     {
         var arbiter = new ConnectionArbiter();
-        var stale = Healthy("usb", TransportKind.Usb) with { LastFrameAt = Now.Subtract(TimeSpan.FromSeconds(4)) };
+        var stale = Healthy("usb", TransportKind.Usb) with { LastActivityAt = Now.Subtract(TimeSpan.FromSeconds(4)) };
 
         var result = arbiter.Evaluate([stale, Healthy("wifi", TransportKind.WiFi)], Now);
 
@@ -63,4 +63,3 @@ public sealed class ConnectionArbiterTests
     private static TransportSnapshot Healthy(string id, TransportKind kind) =>
         new(id, "phone-1", kind, true, Now.Subtract(TimeSpan.FromSeconds(10)), Now, 20);
 }
-

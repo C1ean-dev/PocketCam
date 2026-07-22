@@ -9,6 +9,9 @@ public sealed record HelloMessage(
     [property: JsonPropertyName("appVersion")] string AppVersion,
     [property: JsonPropertyName("capabilities")] string[] Capabilities);
 
+public sealed record StreamControl(
+    [property: JsonPropertyName("stream")] bool Stream);
+
 public sealed record CameraSettings(
     [property: JsonPropertyName("width")] int Width = 1280,
     [property: JsonPropertyName("height")] int Height = 720,
@@ -55,4 +58,3 @@ public static class JsonPayload
         JsonSerializer.Deserialize<T>(value, Options)
         ?? throw new ProtocolException($"Could not deserialize {typeof(T).Name}.");
 }
-

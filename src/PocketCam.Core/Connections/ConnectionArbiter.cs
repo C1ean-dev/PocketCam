@@ -6,7 +6,7 @@ public sealed record TransportSnapshot(
     TransportKind Kind,
     bool IsConnected,
     DateTimeOffset ConnectedAt,
-    DateTimeOffset LastFrameAt,
+    DateTimeOffset LastActivityAt,
     double RoundTripMilliseconds,
     int ConsecutiveFailures = 0);
 
@@ -14,7 +14,7 @@ public sealed record SelectionResult(string? PreviousId, string? ActiveId, bool 
 
 public sealed class ConnectionArbiter
 {
-    public static readonly TimeSpan FrameTimeout = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan ActivityTimeout = TimeSpan.FromSeconds(3);
     public static readonly TimeSpan PromotionDelay = TimeSpan.FromMilliseconds(750);
     public const double PromotionMargin = 35;
 
@@ -76,7 +76,7 @@ public sealed class ConnectionArbiter
     public static bool IsHealthy(TransportSnapshot item, DateTimeOffset now) =>
         item.IsConnected
         && item.ConsecutiveFailures < 3
-        && now - item.LastFrameAt <= FrameTimeout;
+        && now - item.LastActivityAt <= ActivityTimeout;
 
     public static double Score(TransportSnapshot item, DateTimeOffset now)
     {
@@ -100,4 +100,3 @@ public sealed class ConnectionArbiter
         _pendingSince = default;
     }
 }
-
