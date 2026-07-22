@@ -58,14 +58,25 @@ public sealed class ProtocolCodecTests
     [InlineData(270)]
     public void FramePayloadRoundTrips(int rotation)
     {
-        var original = new VideoFrame(1280, 720, (ushort)rotation, VideoCodec.Jpeg, [0xff, 0xd8, 0xff, 0xd9]);
+        var original = new VideoFrame(1280, 720, (ushort)rotation, VideoCodec.Jpeg, new byte[] { 0xff, 0xd8, 0xff, 0xd9 });
         var decoded = VideoFrame.FromPayload(original.ToPayload());
 
         Assert.Equal(original.Width, decoded.Width);
         Assert.Equal(original.Height, decoded.Height);
         Assert.Equal(original.Rotation, decoded.Rotation);
         Assert.Equal(original.Codec, decoded.Codec);
-        Assert.Equal(original.Data, decoded.Data);
+        Assert.Equal(original.Data.ToArray(), decoded.Data.ToArray());
+    }
+
+    [Fact]
+    public void ByteArrayFramePayloadIsDecodedWithoutCopyingJpegBytes()
+    {
+        var payload = new VideoFrame(640, 480, 0, VideoCodec.Jpeg, new byte[] { 1, 2, 3 }).ToPayload();
+
+        var decoded = VideoFrame.FromPayload(payload);
+        payload[8] = 9;
+
+        Assert.Equal(9, decoded.Data.Span[0]);
     }
 
     [Fact]

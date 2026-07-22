@@ -26,7 +26,7 @@ public partial class MediaSource :
 
         uint streamId = 0;
         Functions.MFCreateSensorProfile(Constants.KSCAMERAPROFILE_Legacy, 0, PWSTR.Null, out var legacy).ThrowOnError();
-        legacy.AddProfileFilter(streamId, PWSTR.From("((RES==;FRT<=30,1;SUT==))")).ThrowOnError();
+        legacy.AddProfileFilter(streamId, PWSTR.From("((RES==;FRT<=60,1;SUT==))")).ThrowOnError();
 
         Functions.MFCreateSensorProfile(Constants.KSCAMERAPROFILE_HighFrameRate, 0, PWSTR.Null, out var high).ThrowOnError();
         high.AddProfileFilter(streamId, PWSTR.From("((RES==;FRT>=60,1;SUT==))")).ThrowOnError();
@@ -580,5 +580,4 @@ public partial class MediaSource :
         GC.SuppressFinalize(this);
     }
 }
-
 

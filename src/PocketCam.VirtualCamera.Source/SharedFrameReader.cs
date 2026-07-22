@@ -8,21 +8,46 @@ internal sealed class SharedFrameReader : IDisposable
     private MemoryMappedFile? _mapping;
     private MemoryMappedViewAccessor? _view;
     private byte[] _source = [];
+    private byte[] _target = [];
+    private int _waitingWidth;
+    private int _waitingHeight;
 
     public byte[] ReadScaledBgra(int targetWidth, int targetHeight)
     {
-        var target = new byte[targetWidth * targetHeight * 4];
         if (!TryOpen() || !TryRead(out var width, out var height, out var stride, out var bytes))
         {
-            FillWaitingFrame(target, targetWidth, targetHeight);
-            return target;
+            var waiting = EnsureTarget(targetWidth, targetHeight);
+            if (_waitingWidth != targetWidth || _waitingHeight != targetHeight)
+            {
+                FillWaitingFrame(waiting, targetWidth, targetHeight);
+                _waitingWidth = targetWidth;
+                _waitingHeight = targetHeight;
+            }
+            return waiting;
         }
+
+        _waitingWidth = _waitingHeight = 0;
+        if (width == targetWidth && height == targetHeight && stride == targetWidth * 4) return bytes;
+
+        var target = EnsureTarget(targetWidth, targetHeight);
 
         var scale = Math.Min(targetWidth / (double)width, targetHeight / (double)height);
         var drawWidth = Math.Max(1, (int)Math.Round(width * scale));
         var drawHeight = Math.Max(1, (int)Math.Round(height * scale));
         var offsetX = (targetWidth - drawWidth) / 2;
         var offsetY = (targetHeight - drawHeight) / 2;
+        if (offsetX != 0 || offsetY != 0) Array.Clear(target);
+
+        if (width == drawWidth && height == drawHeight)
+        {
+            var rowBytes = width * 4;
+            for (var y = 0; y < height; y++)
+            {
+                Buffer.BlockCopy(bytes, y * stride, target, ((y + offsetY) * targetWidth + offsetX) * 4, rowBytes);
+            }
+            return target;
+        }
+
         for (var y = 0; y < drawHeight; y++)
         {
             var sourceY = Math.Min(height - 1, y * height / drawHeight);
@@ -38,6 +63,13 @@ internal sealed class SharedFrameReader : IDisposable
             }
         }
         return target;
+    }
+
+    private byte[] EnsureTarget(int width, int height)
+    {
+        var required = checked(width * height * 4);
+        if (_target.Length != required) _target = new byte[required];
+        return _target;
     }
 
     private bool TryOpen()
@@ -113,4 +145,3 @@ internal sealed class SharedFrameReader : IDisposable
 
     public void Dispose() => CloseMapping();
 }
-

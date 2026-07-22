@@ -13,8 +13,8 @@ android {
         applicationId = "com.pocketcam.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 4
-        versionName = providers.gradleProperty("versionName").orNull ?: "0.1.3"
+        versionCode = providers.gradleProperty("versionCode").orNull?.toIntOrNull() ?: 5
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

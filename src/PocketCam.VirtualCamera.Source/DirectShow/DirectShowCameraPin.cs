@@ -268,8 +268,8 @@ internal sealed partial class DirectShowCameraPin : IPin, IAMStreamConfig, IKsPr
             OutputGranularityY = 1,
             MinFrameInterval = format.FrameDuration,
             MaxFrameInterval = format.FrameDuration,
-            MinBitsPerSecond = checked(format.BufferSize * 8 * format.FramesPerSecond),
-            MaxBitsPerSecond = checked(format.BufferSize * 8 * format.FramesPerSecond),
+            MinBitsPerSecond = format.CapabilityBitsPerSecond,
+            MaxBitsPerSecond = format.CapabilityBitsPerSecond,
         };
         Marshal.StructureToPtr(caps, capabilitiesPointer, false);
         return Constants.S_OK;

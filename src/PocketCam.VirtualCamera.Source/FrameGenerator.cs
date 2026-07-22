@@ -164,7 +164,10 @@ public class FrameGenerator : IDisposable
             IComObject<IMFSample> outSample;
 
             // render something on image common to CPU & GPU
-            if (_renderTarget != null && _textFormat != null && _dwrite != null && _whiteBrush != null && _blockBrushes != null)
+            // The CPU path is immediately overwritten by the shared PocketCam frame below.
+            // Rendering the diagnostic pattern first wasted a full 720p draw and text layout
+            // for every sample, which made 60 FPS unattainable.
+            if (HasD3DManager && _renderTarget != null && _textFormat != null && _dwrite != null && _whiteBrush != null && _blockBrushes != null)
             {
                 _renderTarget.BeginDraw();
                 _renderTarget.Clear(new D3DCOLORVALUE(1, 0, 0, 1));
@@ -365,4 +368,3 @@ public class FrameGenerator : IDisposable
     ~FrameGenerator() { Dispose(disposing: false); }
     public void Dispose() { Dispose(disposing: true); GC.SuppressFinalize(this); }
 }
-

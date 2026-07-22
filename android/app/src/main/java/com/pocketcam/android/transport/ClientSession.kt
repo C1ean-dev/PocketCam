@@ -39,7 +39,7 @@ class ClientSession(
             writers = listOf(
                 launchWriter {
                     frameHub.frames.collectLatest { frame ->
-                        send(WireProtocol.Type.FRAME, frame.payload, frame.capturedAtMicros)
+                        sendFrame(frame)
                     }
                 },
                 launchWriter {
@@ -117,6 +117,20 @@ class ClientSession(
                     timestampMicros = timestamp,
                     payload = payload,
                 ),
+            )
+        }
+    }
+
+    private fun sendFrame(frame: com.pocketcam.android.stream.EncodedFrame) {
+        synchronized(output) {
+            WireProtocol.writeFrame(
+                output = output,
+                sequence = sequence.getAndIncrement(),
+                timestampMicros = frame.capturedAtMicros,
+                width = frame.width,
+                height = frame.height,
+                rotation = frame.rotation,
+                jpeg = frame.jpeg,
             )
         }
     }

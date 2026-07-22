@@ -27,7 +27,7 @@ public sealed class DirectShowCameraContractTests
         using var config = ComObject.FromPointer<IAMStreamConfig>(configPointer);
         Assert.NotNull(config);
         Assert.True(config.Object.GetNumberOfCapabilities(out var count, out var capabilitySize).IsSuccess);
-        Assert.Equal(4, count);
+        Assert.Equal(7, count);
         Assert.Equal(Marshal.SizeOf<VIDEO_STREAM_CONFIG_CAPS>(), capabilitySize);
 
         var capabilities = Marshal.AllocCoTaskMem(capabilitySize);
@@ -44,6 +44,7 @@ public sealed class DirectShowCameraContractTests
                 Assert.Equal(1280, videoInfo.bmiHeader.biWidth);
                 Assert.Equal(-720, videoInfo.bmiHeader.biHeight);
                 Assert.Equal(32, videoInfo.bmiHeader.biBitCount);
+                Assert.Equal(60, (int)Math.Round(10_000_000d / videoInfo.AvgTimePerFrame));
                 Marshal.FreeCoTaskMem(mediaType.pbFormat);
             }
             finally
@@ -74,7 +75,7 @@ public sealed class DirectShowCameraContractTests
         var capabilities = Marshal.AllocCoTaskMem(capabilitySize);
         try
         {
-            Assert.True(config.Object.GetStreamCaps(3, out var mediaTypePointer, capabilities).IsSuccess);
+            Assert.True(config.Object.GetStreamCaps(6, out var mediaTypePointer, capabilities).IsSuccess);
             try
             {
                 var consumer = new TestInputPin();

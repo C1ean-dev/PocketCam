@@ -49,6 +49,35 @@ class WireProtocolTest {
         )
     }
 
+    @Test
+    fun frameWriterStreamsMetadataAndJpegAsOneValidProtocolMessage() {
+        val bytes = ByteArrayOutputStream().also {
+            WireProtocol.writeFrame(
+                output = it,
+                sequence = 7,
+                timestampMicros = 123,
+                width = 640,
+                height = 480,
+                rotation = 90,
+                jpeg = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xd9.toByte()),
+            )
+        }.toByteArray()
+
+        val result = WireProtocol.read(ByteArrayInputStream(bytes))
+
+        assertEquals(WireProtocol.Type.FRAME, result.type)
+        assertEquals(7, result.sequence)
+        assertEquals(123, result.timestampMicros)
+        assertArrayEquals(
+            byteArrayOf(
+                0x80.toByte(), 0x02, 0xe0.toByte(), 0x01,
+                0x5a, 0x00, 0x01, 0x00,
+                0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xd9.toByte(),
+            ),
+            result.payload,
+        )
+    }
+
     @Test(expected = ProtocolException::class)
     fun rejectsCorruptPayload() {
         val bytes = ByteArrayOutputStream().also {

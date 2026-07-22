@@ -6,6 +6,8 @@ public partial class MediaStream : IMFAttributes, IMFMediaStream2, IMFMediaStrea
     public const int NUM_IMAGE_COLS = 1280;
     public const int NUM_IMAGE_ROWS = 720;
     public const int NUM_ALLOCATOR_SAMPLES = 10;
+    private const int FramesPerSecond = 60;
+    private const int SampleDuration = 10_000_000 / FramesPerSecond;
 
     internal MFAttributes _attributes; // if we derive from it, C#/WinRT doesn't see it for some reason
     private readonly Lock _lock = new();
@@ -45,8 +47,8 @@ public partial class MediaStream : IMFAttributes, IMFMediaStream2, IMFMediaStrea
             rgbType.Set(Constants.MF_MT_DEFAULT_STRIDE, NUM_IMAGE_COLS * 4u);
             rgbType.Set(Constants.MF_MT_INTERLACE_MODE, (uint)MFVideoInterlaceMode.MFVideoInterlace_Progressive);
             rgbType.Set(Constants.MF_MT_ALL_SAMPLES_INDEPENDENT, 1u);
-            rgbType.SetRatio(Constants.MF_MT_FRAME_RATE, 30, 1);
-            var bitrate = NUM_IMAGE_COLS * 4 * NUM_IMAGE_ROWS * 8 * 30;
+            rgbType.SetRatio(Constants.MF_MT_FRAME_RATE, FramesPerSecond, 1);
+            var bitrate = NUM_IMAGE_COLS * 4 * NUM_IMAGE_ROWS * 8 * FramesPerSecond;
             rgbType.Set(Constants.MF_MT_AVG_BITRATE, (uint)bitrate);
             rgbType.SetRatio(Constants.MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
             mediaTypes[0] = rgbType.Object;
@@ -63,8 +65,8 @@ public partial class MediaStream : IMFAttributes, IMFMediaStream2, IMFMediaStrea
                 nv12Type.Set(Constants.MF_MT_DEFAULT_STRIDE, (uint)(NUM_IMAGE_COLS * 3 / 2));
                 nv12Type.Set(Constants.MF_MT_INTERLACE_MODE, (uint)MFVideoInterlaceMode.MFVideoInterlace_Progressive);
                 nv12Type.Set(Constants.MF_MT_ALL_SAMPLES_INDEPENDENT, 1u);
-                nv12Type.SetRatio(Constants.MF_MT_FRAME_RATE, 30, 1);
-                bitrate = NUM_IMAGE_COLS * 3 * NUM_IMAGE_ROWS * 8 * 30 / 2;
+                nv12Type.SetRatio(Constants.MF_MT_FRAME_RATE, FramesPerSecond, 1);
+                bitrate = NUM_IMAGE_COLS * 3 * NUM_IMAGE_ROWS * 8 * FramesPerSecond / 2;
                 nv12Type.Set(Constants.MF_MT_AVG_BITRATE, (uint)bitrate);
                 nv12Type.SetRatio(Constants.MF_MT_PIXEL_ASPECT_RATIO, 1, 1);
                 mediaTypes[1] = nv12Type.Object;
@@ -349,7 +351,7 @@ public partial class MediaStream : IMFAttributes, IMFMediaStream2, IMFMediaStrea
 
                 using var inputSample = new ComObject<IMFSample>(sample);
                 sample.SetSampleTime(Functions.MFGetSystemTime()).ThrowOnError();
-                sample.SetSampleDuration(333333).ThrowOnError();
+                sample.SetSampleDuration(SampleDuration).ThrowOnError();
 
                 using var outputSample = _generator.Generate(inputSample, _format);
                 if (token != 0)
@@ -362,11 +364,6 @@ public partial class MediaStream : IMFAttributes, IMFMediaStream2, IMFMediaStrea
                     queue.Object.QueueEventParamUnk((uint)MF_EVENT_TYPE.MEMediaSample, Guid.Empty, Constants.S_OK, unk).ThrowOnError();
                 });
 
-                // we must do this sometimes, otherwise the allocator gets full too early
-                if (_generator.FrameCount % (NUM_ALLOCATOR_SAMPLES / 2) == 0)
-                {
-                    GC.Collect();
-                }
                 return Constants.S_OK;
             }
         }
@@ -458,4 +455,3 @@ public partial class MediaStream : IMFAttributes, IMFMediaStream2, IMFMediaStrea
     HRESULT IMFAttributes.SetUnknown(in Guid guidKey, nint pUnknown) => ((IMFAttributes)_attributes).SetUnknown(guidKey, pUnknown);
     HRESULT IMFAttributes.UnlockStore() => ((IMFAttributes)_attributes).UnlockStore();
 }
-

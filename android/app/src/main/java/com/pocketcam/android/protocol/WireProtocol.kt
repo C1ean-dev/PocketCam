@@ -37,18 +37,69 @@ object WireProtocol {
 
     fun write(output: OutputStream, message: Message) {
         require(message.payload.size <= MAX_PAYLOAD_SIZE) { "Payload too large" }
+        writeHeader(
+            output = output,
+            type = message.type,
+            flags = message.flags,
+            payloadSize = message.payload.size,
+            sequence = message.sequence,
+            timestampMicros = message.timestampMicros,
+            payloadCrc = crc32(message.payload).toInt(),
+        )
+        output.write(message.payload)
+        output.flush()
+    }
+
+    fun writeFrame(
+        output: OutputStream,
+        sequence: Int,
+        timestampMicros: Long,
+        width: Int,
+        height: Int,
+        rotation: Int,
+        jpeg: ByteArray,
+    ) {
+        require(width in 1..7680 && height in 1..4320)
+        require(rotation in setOf(0, 90, 180, 270))
+        require(jpeg.isNotEmpty())
+        val metadata = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).apply {
+            putShort(width.toShort())
+            putShort(height.toShort())
+            putShort(rotation.toShort())
+            put(1) // JPEG
+            put(0)
+        }.array()
+        val payloadSize = metadata.size + jpeg.size
+        require(payloadSize <= MAX_PAYLOAD_SIZE) { "Payload too large" }
+        val crc = CRC32().apply {
+            update(metadata)
+            update(jpeg)
+        }.value.toInt()
+        writeHeader(output, Type.FRAME, 0, payloadSize, sequence, timestampMicros, crc)
+        output.write(metadata)
+        output.write(jpeg)
+        output.flush()
+    }
+
+    private fun writeHeader(
+        output: OutputStream,
+        type: Type,
+        flags: Short,
+        payloadSize: Int,
+        sequence: Int,
+        timestampMicros: Long,
+        payloadCrc: Int,
+    ) {
         val header = ByteBuffer.allocate(HEADER_SIZE).order(ByteOrder.LITTLE_ENDIAN)
         header.put(MAGIC)
         header.put(VERSION)
-        header.put(message.type.value)
-        header.putShort(message.flags)
-        header.putInt(message.payload.size)
-        header.putInt(message.sequence)
-        header.putLong(message.timestampMicros)
-        header.putInt(crc32(message.payload).toInt())
+        header.put(type.value)
+        header.putShort(flags)
+        header.putInt(payloadSize)
+        header.putInt(sequence)
+        header.putLong(timestampMicros)
+        header.putInt(payloadCrc)
         output.write(header.array())
-        output.write(message.payload)
-        output.flush()
     }
 
     fun read(input: InputStream): Message {

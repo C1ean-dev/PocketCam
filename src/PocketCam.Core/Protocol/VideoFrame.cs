@@ -7,7 +7,7 @@ public enum VideoCodec : byte
     Jpeg = 1,
 }
 
-public sealed record VideoFrame(ushort Width, ushort Height, ushort Rotation, VideoCodec Codec, byte[] Data)
+public sealed record VideoFrame(ushort Width, ushort Height, ushort Rotation, VideoCodec Codec, ReadOnlyMemory<byte> Data)
 {
     public byte[] ToPayload()
     {
@@ -17,11 +17,24 @@ public sealed record VideoFrame(ushort Width, ushort Height, ushort Rotation, Vi
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2), Height);
         BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4), Rotation);
         payload[6] = (byte)Codec;
-        Data.CopyTo(payload, 8);
+        Data.Span.CopyTo(payload.AsSpan(8));
         return payload;
     }
 
+    public static VideoFrame FromPayload(byte[] payload)
+    {
+        ArgumentNullException.ThrowIfNull(payload);
+        var (width, height, rotation, codec) = ReadMetadata(payload);
+        return new VideoFrame(width, height, rotation, codec, payload.AsMemory(8));
+    }
+
     public static VideoFrame FromPayload(ReadOnlySpan<byte> payload)
+    {
+        var (width, height, rotation, codec) = ReadMetadata(payload);
+        return new VideoFrame(width, height, rotation, codec, payload[8..].ToArray());
+    }
+
+    private static (ushort Width, ushort Height, ushort Rotation, VideoCodec Codec) ReadMetadata(ReadOnlySpan<byte> payload)
     {
         if (payload.Length < 8)
         {
@@ -33,7 +46,7 @@ public sealed record VideoFrame(ushort Width, ushort Height, ushort Rotation, Vi
         var rotation = BinaryPrimitives.ReadUInt16LittleEndian(payload[4..]);
         var codec = (VideoCodec)payload[6];
         Validate(width, height, rotation, codec, payload.Length - 8);
-        return new VideoFrame(width, height, rotation, codec, payload[8..].ToArray());
+        return (width, height, rotation, codec);
     }
 
     private static void Validate(ushort width, ushort height, ushort rotation, VideoCodec codec, int dataLength)
@@ -59,4 +72,3 @@ public sealed record VideoFrame(ushort Width, ushort Height, ushort Rotation, Vi
         }
     }
 }
-

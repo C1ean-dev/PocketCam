@@ -6,7 +6,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 data class EncodedFrame(
-    val payload: ByteArray,
+    val width: Int,
+    val height: Int,
+    val rotation: Int,
+    val jpeg: ByteArray,
     val capturedAtMicros: Long,
 )
 

@@ -6,7 +6,7 @@ import org.junit.Test
 class StreamSettingsTest {
     @Test
     fun supportedSettingsAreAccepted() {
-        val settings = StreamSettings(1920, 1080, 30, 90, "front")
+        val settings = StreamSettings(1920, 1080, 60, 90, "front")
 
         assertEquals(settings, settings.validated())
     }

@@ -7,6 +7,10 @@ data class StreamingStatus(
     val running: Boolean = false,
     val wifiClients: Int = 0,
     val bluetoothClients: Int = 0,
+    val targetFps: Int = 0,
+    val cameraFps: Double = 0.0,
+    val encodedFps: Double = 0.0,
+    val droppedFps: Double = 0.0,
     val lastError: String? = null,
 )
 

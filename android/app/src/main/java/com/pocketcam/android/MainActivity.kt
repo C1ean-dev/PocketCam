@@ -332,6 +332,19 @@ private fun PocketCamScreen(
                     color = Color(0xFFA8C7C8),
                 )
                 Text(
+                    "Câmera: ${status.cameraFps.toInt()} FPS  ·  " +
+                        "codificados: ${status.encodedFps.toInt()} FPS  ·  meta: ${status.targetFps}",
+                    color = if (status.encodedFps >= 55.0 || !status.running) Color(0xFFA8C7C8) else Color(0xFFFFC46B),
+                    fontSize = 12.sp,
+                )
+                if (status.droppedFps >= 0.5) {
+                    Text(
+                        "Descartados para manter baixa latência: ${status.droppedFps.toInt()} FPS",
+                        color = Color(0xFFFFC46B),
+                        fontSize = 12.sp,
+                    )
+                }
+                Text(
                     if (localAddresses.isEmpty()) "Wi-Fi sem endereço local" else "Wi-Fi: ${localAddresses.joinToString()} :17890",
                     color = Color(0xFFA8C7C8),
                     fontSize = 12.sp,
@@ -379,8 +392,8 @@ private fun PocketCamScreen(
             value = fps,
             onValueChange = { fps = it },
             onValueChangeFinished = { store.update(settings.copy(fps = fps.toInt())) },
-            valueRange = 5f..30f,
-            steps = 24,
+            valueRange = 5f..60f,
+            steps = 54,
         )
         Text("Qualidade JPEG: ${quality.toInt()}%", fontWeight = FontWeight.SemiBold)
         Slider(

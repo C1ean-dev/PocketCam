@@ -22,7 +22,7 @@ public sealed class TransportSessionIntegrationTests
                 stream,
                 ProtocolMessage.Create(MessageType.Hello, 1, JsonPayload.Serialize(hello)),
                 timeout.Token);
-            var frame = new VideoFrame(640, 480, 90, VideoCodec.Jpeg, [0xff, 0xd8, 0xff, 0xd9]);
+            var frame = new VideoFrame(640, 480, 90, VideoCodec.Jpeg, new byte[] { 0xff, 0xd8, 0xff, 0xd9 });
             await ProtocolCodec.WriteAsync(
                 stream,
                 ProtocolMessage.Create(MessageType.Frame, 2, frame.ToPayload()),
@@ -44,7 +44,7 @@ public sealed class TransportSessionIntegrationTests
         Assert.Equal((ushort)640, frame.Width);
         Assert.Equal((ushort)480, frame.Height);
         Assert.Equal((ushort)90, frame.Rotation);
-        Assert.Equal([0xff, 0xd8, 0xff, 0xd9], frame.Data);
+        Assert.Equal([0xff, 0xd8, 0xff, 0xd9], frame.Data.ToArray());
     }
 
     [Fact]

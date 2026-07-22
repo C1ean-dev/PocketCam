@@ -22,51 +22,60 @@ class YuvToJpegEncoder {
         }
 
         copyNv21(image, nv21)
-        val success = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
-            .compressToJpeg(Rect(0, 0, image.width, image.height), quality, output)
+        return encode(nv21, image.width, image.height, quality)
+    }
+
+    @Synchronized
+    fun encode(nv21: ByteArray, width: Int, height: Int, quality: Int): ByteArray {
+        val requiredBytes = width * height * 3 / 2
+        require(nv21.size >= requiredBytes)
+        if (output.size() > 0) output.reset()
+        val success = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+            .compressToJpeg(Rect(0, 0, width, height), quality, output)
         check(success) { "Android JPEG encoder rejected the camera frame" }
         return output.toByteArray()
     }
+}
 
-    private fun copyNv21(image: ImageProxy, destination: ByteArray) {
-        val width = image.width
-        val height = image.height
-        val planes = image.planes
-        check(planes.size >= 3) { "NV21 camera frame did not expose three planes" }
+internal fun copyNv21(image: ImageProxy, destination: ByteArray) {
+    val width = image.width
+    val height = image.height
+    val planes = image.planes
+    check(planes.size >= 3) { "NV21 camera frame did not expose three planes" }
+    require(destination.size >= width * height * 3 / 2)
 
-        YuvBufferCopier.copyContiguousRows(
-            planes[0].buffer,
-            planes[0].rowStride,
-            width,
-            height,
-            destination,
-            0,
-        )
+    YuvBufferCopier.copyContiguousRows(
+        planes[0].buffer,
+        planes[0].rowStride,
+        width,
+        height,
+        destination,
+        0,
+    )
 
-        // CameraX OUTPUT_IMAGE_FORMAT_NV21 guarantees that plane 2 starts at V and
-        // exposes the VU-interleaved chroma bytes, so no per-pixel YUV conversion is needed.
-        val chromaCopied = YuvBufferCopier.tryCopyContiguousRows(
+    // CameraX OUTPUT_IMAGE_FORMAT_NV21 guarantees that plane 2 starts at V and
+    // exposes the VU-interleaved chroma bytes, so no per-pixel YUV conversion is needed.
+    val chromaCopied = YuvBufferCopier.tryCopyContiguousRows(
+        planes[2].buffer,
+        planes[2].rowStride,
+        width,
+        height / 2,
+        destination,
+        width * height,
+    )
+    if (!chromaCopied) {
+        YuvBufferCopier.copyInterleavedChroma(
             planes[2].buffer,
             planes[2].rowStride,
+            planes[2].pixelStride,
+            planes[1].buffer,
+            planes[1].rowStride,
+            planes[1].pixelStride,
             width,
             height / 2,
             destination,
             width * height,
         )
-        if (!chromaCopied) {
-            YuvBufferCopier.copyInterleavedChroma(
-                planes[2].buffer,
-                planes[2].rowStride,
-                planes[2].pixelStride,
-                planes[1].buffer,
-                planes[1].rowStride,
-                planes[1].pixelStride,
-                width,
-                height / 2,
-                destination,
-                width * height,
-            )
-        }
     }
 }
 

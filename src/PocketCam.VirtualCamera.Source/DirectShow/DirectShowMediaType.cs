@@ -4,12 +4,17 @@ internal readonly record struct DirectShowVideoFormat(int Width, int Height, int
 {
     public int BufferSize => checked(Width * Height * 4);
     public long FrameDuration => 10_000_000L / FramesPerSecond;
+    public long BitsPerSecond => BufferSize * 8L * FramesPerSecond;
+    public int CapabilityBitsPerSecond => (int)Math.Min(int.MaxValue, BitsPerSecond);
 }
 
 internal static class DirectShowMediaType
 {
     public static readonly DirectShowVideoFormat[] Formats =
     [
+        new(1920, 1080, 60),
+        new(1280, 720, 60),
+        new(640, 480, 60),
         new(1920, 1080, 30),
         new(1280, 720, 30),
         new(640, 480, 30),
@@ -20,7 +25,7 @@ internal static class DirectShowMediaType
     {
         var videoInfo = new VIDEOINFOHEADER
         {
-            dwBitRate = checked((uint)(format.BufferSize * 8L * format.FramesPerSecond)),
+            dwBitRate = checked((uint)format.BitsPerSecond),
             AvgTimePerFrame = format.FrameDuration,
             bmiHeader = new BITMAPINFOHEADER
             {
