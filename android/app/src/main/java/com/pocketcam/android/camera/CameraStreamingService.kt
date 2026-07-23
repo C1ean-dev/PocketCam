@@ -69,7 +69,7 @@ class CameraStreamingService : LifecycleService() {
     )
     private val jpegEncoders = ThreadLocal.withInitial(::YuvToJpegEncoder)
     private val frameRateLimiter = FrameRateLimiter()
-    private val orderedFrames = OrderedResultQueue<EncodedFrame>()
+    private val latestFrames = LatestResultQueue<EncodedFrame>()
     private val frameSequence = AtomicLong()
     private val cameraGeneration = AtomicLong()
     private val cameraFrames = AtomicLong()
@@ -164,7 +164,7 @@ class CameraStreamingService : LifecycleService() {
                     val nextGeneration = cameraGeneration.incrementAndGet()
                     frameRateLimiter.reset()
                     bufferPoolState = null
-                    orderedFrames.reset(nextGeneration, frameSequence.get())
+                    latestFrames.reset(nextGeneration, frameSequence.get())
                 }
                 val selector = if (settings.lens == "front") {
                     CameraSelector.DEFAULT_FRONT_CAMERA
@@ -183,7 +183,11 @@ class CameraStreamingService : LifecycleService() {
                             .build(),
                     )
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_NV21)
+                    // Keep CameraX on its native YUV path. Requesting NV21 makes
+                    // CameraX perform an additional format conversion before the
+                    // analyzer runs; the encoder already has a pooled YUV->NV21
+                    // copy below, so doing that conversion twice only adds latency.
+                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                 val analysis = analysisBuilder.build()
                 analysis.setAnalyzer(cameraExecutor, ::analyze)
                 val baseSession = SessionConfig(analysis)
@@ -247,7 +251,7 @@ class CameraStreamingService : LifecycleService() {
             }
 
             try {
-                copyNv21(image, buffer)
+                copyYuv420ToNv21(image, buffer)
             } catch (error: Exception) {
                 pool.release(buffer)
                 throw error
@@ -300,7 +304,13 @@ class CameraStreamingService : LifecycleService() {
     }
 
     private fun publishCompleted(generation: Long, sequence: Long, frame: EncodedFrame?) {
-        orderedFrames.complete(generation, sequence, frame).forEach { ready ->
+        val readyFrames = latestFrames.complete(generation, sequence, frame)
+        if (frame != null && readyFrames.isEmpty()) {
+            // An older encode finished after a newer one. It is intentionally
+            // discarded to keep end-to-end latency bounded.
+            droppedFrames.incrementAndGet()
+        }
+        readyFrames.forEach { ready ->
             frameHub.publish(ready)
             encodedFrames.incrementAndGet()
         }

@@ -48,4 +48,24 @@ class YuvBufferCopierTest {
             ),
         )
     }
+
+    @Test
+    fun interleavesNativeYuvChromaPlanesAsNv21() {
+        val output = ByteArray(8)
+
+        YuvBufferCopier.copyInterleavedChroma(
+            vSource = ByteBuffer.wrap(byteArrayOf(10, 0, 20, 0)),
+            vRowStride = 4,
+            vPixelStride = 2,
+            uSource = ByteBuffer.wrap(byteArrayOf(1, 0, 2, 0)),
+            uRowStride = 4,
+            uPixelStride = 2,
+            outputRowBytes = 4,
+            rowCount = 1,
+            destination = output,
+            destinationOffset = 0,
+        )
+
+        assertArrayEquals(byteArrayOf(10, 1, 20, 2, 0, 0, 0, 0), output)
+    }
 }

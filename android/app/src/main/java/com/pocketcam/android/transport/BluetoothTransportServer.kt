@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
+import java.io.BufferedOutputStream
 import java.util.Collections
 import java.util.UUID
 
@@ -52,7 +53,9 @@ class BluetoothTransportServer(
                         ServiceStatus.update { it.copy(bluetoothClients = it.bluetoothClients + 1) }
                         try {
                             ClientSession(
-                                socket.inputStream, socket.outputStream, socket,
+                                socket.inputStream,
+                                BufferedOutputStream(socket.outputStream, OUTPUT_BUFFER_SIZE),
+                                socket,
                                 frameHub, settingsStore, this, appVersion,
                             ).run()
                         } catch (cancelled: CancellationException) {
@@ -91,4 +94,8 @@ class BluetoothTransportServer(
 
     private fun hasPermission(): Boolean = android.os.Build.VERSION.SDK_INT < 31 ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+
+    private companion object {
+        const val OUTPUT_BUFFER_SIZE = 256 * 1024
+    }
 }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -34,8 +35,9 @@ class ClientSession(
     private val appVersion: String,
 ) {
     private val sequence = AtomicInteger(1)
-    @Volatile
-    private var streamFrames = true
+    // Backup routes stay connected for seamless failover, but must not wake up
+    // for every encoded frame while they are disabled by the desktop arbiter.
+    private val streamFrames = MutableStateFlow(true)
 
     suspend fun run() {
         var writers: List<Job> = emptyList()
@@ -43,8 +45,12 @@ class ClientSession(
             send(WireProtocol.Type.HELLO, helloPayload())
             writers = listOf(
                 launchWriter {
-                    frameHub.frames.collectLatest { frame ->
-                        sendFrame(frame)
+                    streamFrames.collectLatest { enabled ->
+                        if (enabled) {
+                            frameHub.frames.collectLatest { frame ->
+                                sendFrame(frame)
+                            }
+                        }
                     }
                 },
                 launchWriter {
@@ -119,7 +125,7 @@ class ClientSession(
     }
 
     private fun applyStreamControl(payload: ByteArray) {
-        StreamControlPayload.decode(payload)?.let { enabled -> streamFrames = enabled }
+        StreamControlPayload.decode(payload)?.let { enabled -> streamFrames.value = enabled }
     }
 
     private fun send(type: WireProtocol.Type, payload: ByteArray, timestamp: Long = System.currentTimeMillis() * 1_000) {
@@ -137,9 +143,9 @@ class ClientSession(
     }
 
     private fun sendFrame(frame: com.pocketcam.android.stream.EncodedFrame) {
-        if (!streamFrames) return
+        if (!streamFrames.value) return
         synchronized(output) {
-            if (!streamFrames) return
+            if (!streamFrames.value) return
             WireProtocol.writeFrame(
                 output = output,
                 sequence = sequence.getAndIncrement(),

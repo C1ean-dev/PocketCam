@@ -20,7 +20,7 @@ internal class YuvToJpegEncoder {
             output.reset()
         }
 
-        copyNv21(image, nv21)
+        copyYuv420ToNv21(image, nv21)
         return encode(nv21, image.width, image.height, quality)
     }
 
@@ -36,7 +36,12 @@ internal class YuvToJpegEncoder {
     }
 }
 
-internal fun copyNv21(image: ImageProxy, destination: ByteArray) {
+/**
+ * Copies CameraX's native YUV_420_888 planes into the NV21 layout expected by
+ * [android.graphics.YuvImage], without asking CameraX to perform a second
+ * format conversion first.
+ */
+internal fun copyYuv420ToNv21(image: ImageProxy, destination: ByteArray) {
     val width = image.width
     val height = image.height
     val planes = image.planes
@@ -52,30 +57,21 @@ internal fun copyNv21(image: ImageProxy, destination: ByteArray) {
         0,
     )
 
-    // CameraX OUTPUT_IMAGE_FORMAT_NV21 guarantees that plane 2 starts at V and
-    // exposes the VU-interleaved chroma bytes, so no per-pixel YUV conversion is needed.
-    val chromaCopied = YuvBufferCopier.tryCopyContiguousRows(
+    // YUV_420_888 exposes U then V planes. NV21 stores the same samples as VU.
+    // The common camera layout has pixelStride=2 and already interleaves the
+    // chroma; the fallback handles devices that expose separate pixel samples.
+    YuvBufferCopier.copyInterleavedChroma(
         planes[2].buffer,
         planes[2].rowStride,
+        planes[2].pixelStride,
+        planes[1].buffer,
+        planes[1].rowStride,
+        planes[1].pixelStride,
         width,
         height / 2,
         destination,
         width * height,
     )
-    if (!chromaCopied) {
-        YuvBufferCopier.copyInterleavedChroma(
-            planes[2].buffer,
-            planes[2].rowStride,
-            planes[2].pixelStride,
-            planes[1].buffer,
-            planes[1].rowStride,
-            planes[1].pixelStride,
-            width,
-            height / 2,
-            destination,
-            width * height,
-        )
-    }
 }
 
 internal object YuvBufferCopier {
@@ -127,11 +123,17 @@ internal object YuvBufferCopier {
         destination: ByteArray,
         destinationOffset: Int,
     ) {
+        require(outputRowBytes > 0 && outputRowBytes % 2 == 0)
+        require(rowCount > 0)
+        val chromaWidth = outputRowBytes / 2
+        require(destinationOffset >= 0 && destinationOffset + outputRowBytes * rowCount <= destination.size)
         val v = vSource.duplicate()
         val u = uSource.duplicate()
         val vBase = v.position()
         val uBase = u.position()
-        val chromaWidth = outputRowBytes / 2
+        val vLast = vBase + (rowCount - 1) * vRowStride + (chromaWidth - 1) * vPixelStride
+        val uLast = uBase + (rowCount - 1) * uRowStride + (chromaWidth - 1) * uPixelStride
+        require(vPixelStride > 0 && uPixelStride > 0 && vLast in vBase until v.limit() && uLast in uBase until u.limit())
         var target = destinationOffset
         for (row in 0 until rowCount) {
             val vRow = vBase + row * vRowStride

@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
+import java.io.BufferedOutputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
@@ -49,7 +50,9 @@ class TcpTransportServer(
                         ServiceStatus.update { it.copy(wifiClients = it.wifiClients + 1) }
                         try {
                             ClientSession(
-                                socket.getInputStream(), socket.getOutputStream(), socket,
+                                socket.getInputStream(),
+                                BufferedOutputStream(socket.getOutputStream(), OUTPUT_BUFFER_SIZE),
+                                socket,
                                 frameHub, settingsStore, this, appVersion,
                             ).run()
                         } catch (cancelled: CancellationException) {
@@ -82,5 +85,11 @@ class TcpTransportServer(
         sockets.clear()
         sessions.toList().forEach(Job::cancel)
         sessions.clear()
+    }
+
+    private companion object {
+        // Coalesce protocol header/metadata writes and reduce kernel writes for
+        // JPEGs larger than a single TCP segment without buffering indefinitely.
+        const val OUTPUT_BUFFER_SIZE = 256 * 1024
     }
 }
