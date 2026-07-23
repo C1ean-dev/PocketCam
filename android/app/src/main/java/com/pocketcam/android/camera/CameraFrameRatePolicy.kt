@@ -8,7 +8,15 @@ data class FrameRateRange(val lower: Int, val upper: Int) {
     }
 }
 
+data class FrameRatePlan(
+    val requestedFps: Int,
+    val cameraRange: FrameRateRange?,
+)
+
 object CameraFrameRatePolicy {
+    fun plan(available: Collection<FrameRateRange>, requestedFps: Int): FrameRatePlan =
+        FrameRatePlan(requestedFps, select(available, requestedFps))
+
     fun select(available: Collection<FrameRateRange>, requestedFps: Int): FrameRateRange? = available
         .minWithOrNull(
             compareBy<FrameRateRange>(

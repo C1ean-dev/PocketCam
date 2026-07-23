@@ -187,14 +187,17 @@ class CameraStreamingService : LifecycleService() {
                 val analysis = analysisBuilder.build()
                 analysis.setAnalyzer(cameraExecutor, ::analyze)
                 val baseSession = SessionConfig(analysis)
-                val targetFrameRate = selectFrameRate(provider, selector, baseSession, settings.fps)
+                val frameRatePlan = planFrameRate(provider, selector, baseSession, settings.fps)
+                val targetFrameRate = frameRatePlan.cameraRange?.let { Range(it.lower, it.upper) }
                 val session = SessionConfig.Builder(listOf(analysis)).apply {
                     if (targetFrameRate != null) setFrameRateRange(targetFrameRate)
                 }.build()
                 provider.bindToLifecycle(this, selector, session)
                 ServiceStatus.update {
                     it.copy(
-                        targetFps = targetFrameRate?.upper ?: settings.fps,
+                        // "Meta" is the rate requested by the user. Camera/encoder metrics
+                        // report the achieved rate separately, even when hardware falls back.
+                        targetFps = frameRatePlan.requestedFps,
                         lastError = null,
                     )
                 }
@@ -204,19 +207,18 @@ class CameraStreamingService : LifecycleService() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun selectFrameRate(
+    private fun planFrameRate(
         provider: ProcessCameraProvider,
         selector: CameraSelector,
         session: SessionConfig,
         requestedFps: Int,
-    ): Range<Int>? = runCatching {
+    ): FrameRatePlan = runCatching {
         val cameraInfo = provider.getCameraInfo(selector)
-        val selected = CameraFrameRatePolicy.select(
+        CameraFrameRatePolicy.plan(
             cameraInfo.getSupportedFrameRateRanges(session).map { FrameRateRange(it.lower, it.upper) },
             requestedFps,
-        ) ?: return@runCatching null
-        Range(selected.lower, selected.upper)
-    }.getOrNull()
+        )
+    }.getOrElse { FrameRatePlan(requestedFps, null) }
 
     private fun analyze(image: ImageProxy) {
         cameraFrames.incrementAndGet()

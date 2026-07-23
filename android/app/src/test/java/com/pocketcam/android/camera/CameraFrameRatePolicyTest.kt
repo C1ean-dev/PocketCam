@@ -29,4 +29,15 @@ class CameraFrameRatePolicyTest {
     fun handlesCameraWithoutReportedRanges() {
         assertNull(CameraFrameRatePolicy.select(emptyList(), 30))
     }
+
+    @Test
+    fun keepsSixtyAsTargetWhenCameraRangeFallsBackToThirty() {
+        val plan = CameraFrameRatePolicy.plan(
+            listOf(FrameRateRange(15, 30), FrameRateRange(30, 30)),
+            60,
+        )
+
+        assertEquals(60, plan.requestedFps)
+        assertEquals(FrameRateRange(30, 30), plan.cameraRange)
+    }
 }
