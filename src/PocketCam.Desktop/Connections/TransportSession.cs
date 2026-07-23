@@ -10,9 +10,11 @@ public sealed class TransportSession : IAsyncDisposable
     private readonly CancellationTokenSource _cancellation = new();
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly object _disposeGate = new();
     private Stream? _stream;
     private Task? _readerTask;
     private Task? _pingTask;
+    private Task? _disposeTask;
     private int _sequence;
     private long _lastActivityTicks;
     private long _roundTripBits;
@@ -185,7 +187,15 @@ public sealed class TransportSession : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
+    {
+        lock (_disposeGate)
+        {
+            return new ValueTask(_disposeTask ??= DisposeCoreAsync());
+        }
+    }
+
+    private async Task DisposeCoreAsync()
     {
         _cancellation.Cancel();
         _stream?.Dispose();

@@ -87,7 +87,8 @@
                 <Slider Minimum="5" Maximum="60" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedFps}" />
                 <TextBlock Text="{Binding JpegQuality, StringFormat=Qualidade: {0}%}" Foreground="{StaticResource MutedBrush}" Margin="0,14,0,3" />
                 <Slider Minimum="40" Maximum="95" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding JpegQuality}" />
-                <ComboBox Margin="0,14,0,0" ItemsSource="{Binding LensOptions}" SelectedItem="{Binding SelectedLens}" />
+                <TextBlock Text="Câmera" Foreground="{StaticResource MutedBrush}" Margin="0,14,0,5" />
+                <ComboBox ItemsSource="{Binding LensOptions}" SelectedItem="{Binding SelectedLens}" />
                 <Button Content="Aplicar no celular" Command="{Binding ApplySettingsCommand}" Margin="0,12,0,0"
                         Background="{StaticResource AccentBrush}" Foreground="#041416" />
                 <TextBlock Text="{Binding SettingsStatusText}" Foreground="{StaticResource MutedBrush}"

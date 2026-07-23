@@ -7,28 +7,51 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsStore(context: Context) {
+    private val repository = sharedRepository(context.applicationContext)
+    val settings: StateFlow<StreamSettings> = repository.settings
+
+    fun update(value: StreamSettings) = repository.update(value)
+
+    companion object {
+        @Volatile
+        private var shared: SettingsRepository? = null
+
+        private fun sharedRepository(context: Context): SettingsRepository = shared ?: synchronized(this) {
+            shared ?: SettingsRepository(context).also { shared = it }
+        }
+    }
+}
+
+private class SettingsRepository(context: Context) {
     private val preferences = context.getSharedPreferences("pocketcam", Context.MODE_PRIVATE)
     private val mutableSettings = MutableStateFlow(read())
-    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
-        mutableSettings.value = read()
-    }
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> refresh() }
     val settings: StateFlow<StreamSettings> = mutableSettings.asStateFlow()
 
     init {
+        // Keep one strong, process-wide listener so Activity, foreground service and every
+        // transport session always observe the same StateFlow immediately.
         preferences.registerOnSharedPreferenceChangeListener(preferenceListener)
     }
 
     @Synchronized
     fun update(value: StreamSettings) {
-        value.validated()
+        val validated = value.validated()
+        if (mutableSettings.value == validated) return
+        mutableSettings.value = validated
         preferences.edit()
-            .putInt("width", value.width)
-            .putInt("height", value.height)
-            .putInt("fps", value.fps)
-            .putInt("jpegQuality", value.jpegQuality)
-            .putString("lens", value.lens)
+            .putInt("width", validated.width)
+            .putInt("height", validated.height)
+            .putInt("fps", validated.fps)
+            .putInt("jpegQuality", validated.jpegQuality)
+            .putString("lens", validated.lens)
             .apply()
-        mutableSettings.value = value
+    }
+
+    @Synchronized
+    private fun refresh() {
+        val persisted = read().validated()
+        if (mutableSettings.value != persisted) mutableSettings.value = persisted
     }
 
     private fun read() = StreamSettings(

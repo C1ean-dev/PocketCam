@@ -20,6 +20,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     private readonly Channel<TransportEndpoint> _endpoints = Channel.CreateUnbounded<TransportEndpoint>();
     private readonly ConcurrentDictionary<string, TransportSession> _sessions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _connecting = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, CameraSettings> _deviceSettings = new(StringComparer.Ordinal);
     private readonly ConnectionArbiter _arbiter = new();
     private readonly object _arbiterGate = new();
     private readonly IEndpointDiscovery[] _discoveries =
@@ -36,6 +37,7 @@ public sealed class ConnectionManager : IAsyncDisposable
     private CameraSettings? _lastSettings;
     private string? _lastMetricsEndpointId;
     private StreamingMetrics? _lastMetrics;
+    private event Action<string, CameraSettings>? SettingsAcknowledged;
 
     public event Action<VideoFrame, TransportSession>? ActiveFrameReceived;
     public event Action<CameraSettings>? SettingsChanged;
@@ -61,13 +63,14 @@ public sealed class ConnectionManager : IAsyncDisposable
             throw new InvalidOperationException("Nenhum celular está conectado para receber as configurações.");
         }
 
+        var activeDeviceId = active.DeviceId;
         var confirmation = new TaskCompletionSource<CameraSettings>(TaskCreationOptions.RunContinuationsAsynchronously);
-        void Confirm(TransportSession session, CameraSettings applied)
+        void Confirm(string deviceId, CameraSettings applied)
         {
-            if (ReferenceEquals(session, active) && applied == settings) confirmation.TrySetResult(applied);
+            if (deviceId == activeDeviceId && applied == settings) confirmation.TrySetResult(applied);
         }
 
-        active.SettingsReceived += Confirm;
+        SettingsAcknowledged += Confirm;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cancellation.Token);
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
         try
@@ -77,7 +80,7 @@ public sealed class ConnectionManager : IAsyncDisposable
         }
         finally
         {
-            active.SettingsReceived -= Confirm;
+            SettingsAcknowledged -= Confirm;
         }
     }
 
@@ -160,8 +163,16 @@ public sealed class ConnectionManager : IAsyncDisposable
 
     private void OnSettingsReceived(TransportSession session, CameraSettings settings)
     {
+        var deviceId = session.DeviceId;
+        _deviceSettings[deviceId] = settings;
+        SettingsAcknowledged?.Invoke(deviceId, settings);
         var selection = Evaluate();
-        if (selection.ActiveId == session.Endpoint.Id) PublishActiveSettings(selection);
+        if (selection.ActiveId is not null &&
+            _sessions.TryGetValue(selection.ActiveId, out var active) &&
+            active.DeviceId == deviceId)
+        {
+            PublishSettings(deviceId, settings);
+        }
     }
 
     private void OnMetricsReceived(TransportSession session, StreamingMetrics metrics)
@@ -237,16 +248,28 @@ public sealed class ConnectionManager : IAsyncDisposable
     private void PublishActiveSettings(SelectionResult selection)
     {
         if (selection.ActiveId is null ||
-            !_sessions.TryGetValue(selection.ActiveId, out var active) ||
-            active.CurrentSettings is not { } settings)
+            !_sessions.TryGetValue(selection.ActiveId, out var active))
         {
             return;
         }
 
+        var deviceId = active.DeviceId;
+        if (!_deviceSettings.TryGetValue(deviceId, out var settings) && active.CurrentSettings is { } sessionSettings)
+        {
+            settings = sessionSettings;
+            _deviceSettings[deviceId] = settings;
+        }
+        if (settings is null) return;
+
+        PublishSettings(deviceId, settings);
+    }
+
+    private void PublishSettings(string deviceId, CameraSettings settings)
+    {
         lock (_settingsGate)
         {
-            if (_lastSettingsDeviceId == active.DeviceId && _lastSettings == settings) return;
-            _lastSettingsDeviceId = active.DeviceId;
+            if (_lastSettingsDeviceId == deviceId && _lastSettings == settings) return;
+            _lastSettingsDeviceId = deviceId;
             _lastSettings = settings;
         }
         SettingsChanged?.Invoke(settings);
